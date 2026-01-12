@@ -1,0 +1,8 @@
+{
+  "name": "PromoterFlow - Gestión de Promotoría",
+  "description": "Una aplicación integral para el registro, seguimiento en tiempo real y análisis de desempeño de promotores de campo utilizando IA para resúmenes ejecutivos.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ]
+}

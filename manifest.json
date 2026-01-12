@@ -1,0 +1,22 @@
+
+{
+  "name": "PromoterFlow Management",
+  "short_name": "PromoterFlow",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "description": "Sistema de gestión y seguimiento de promotores de campo.",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/appicon/192/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://picsum.photos/seed/appicon/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
