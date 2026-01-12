@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { Activity, Promoter, ReportPeriod } from "../types";
 
 export const generatePerformanceSummary = async (activities: Activity[], promoters: Promoter[]) => {
-  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
 
   const prompt = `
