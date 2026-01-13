@@ -24,7 +24,6 @@ export default async function handler(req: any, res: any) {
       contents: prompt,
     });
 
-    // El SDK devuelve texto agregado en result.text (según el helper del SDK)
     return res.status(200).json({ text: result.text ?? "" });
   } catch (e: any) {
     return res.status(500).json({
