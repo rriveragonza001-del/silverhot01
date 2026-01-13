@@ -1,0 +1,67 @@
+import { GoogleGenAI } from "@google/genai";
+
+/**
+ * POST /api/generate
+ * Body: { mode: 'summary'|'report', activities, promoters, period, promoterName, filterInfo }
+ */
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  const { mode, activities, promoters, period, promoterName, filterInfo } = req.body || {};
+
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  if (!apiKey) {
+    res.status(500).json({ error: 'API key not configured on server' });
+    return;
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const model = mode === 'report' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
+
+    const prompt = mode === 'report'
+      ? `
+      Genera un INFORME DE ACTIVIDADES DETALLADO.
+      Periodo/Filtro: ${period || 'N/A'}.
+      ${promoterName ? `Gestor: ${promoterName}.` : ''}
+      ${filterInfo ? `Contexto del filtro: ${filterInfo}.` : ''}
+      Datos de actividades: ${JSON.stringify(activities || [])}
+
+      El informe debe estructurarse así:
+      1. Portada Institucional.
+      2. Resumen Ejecutivo de Labores.
+      3. Desglose detallado por tipo de acción y cumplimiento de objetivos.
+      4. Análisis territorial y de impacto (Zonas impactadas).
+      5. Conclusiones estratégicas y firmas de responsabilidad.
+
+      Usa un tono formal y responde en Markdown.
+    `
+      : `
+      Analiza las siguientes actividades de promotores de campo y genera un resumen ejecutivo profesional en español.
+
+      Promotores: ${JSON.stringify(promoters || [])}
+      Actividades: ${JSON.stringify(activities || [])}
+
+      El resumen debe incluir:
+      1. Un análisis general de la ejecución de labores.
+      2. Identificación de áreas de oportunidad.
+      3. Recomendaciones para mejorar la eficiencia del equipo.
+      4. Un breve veredicto sobre el estado actual de las operaciones.
+
+      Responde en formato Markdown limpio.
+    `;
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+    });
+
+    res.status(200).json({ text: response.text || null });
+  } catch (err) {
+    console.error('Gemini API Error:', err);
+    res.status(500).json({ error: 'Error al conectar con Gemini', details: String(err) });
+  }
+}
