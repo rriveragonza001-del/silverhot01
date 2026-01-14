@@ -67,10 +67,10 @@ export interface Activity {
   companions: string;
   status: ActivityStatus;
   location: Location;
-  // Added missing type property to match ActivityType enum
   type: ActivityType;
   verificationPhoto?: string;
   adminComments?: string;
+  assignedBy?: string; // ID del administrador que asignó la tarea
 }
 
 export interface Promoter {

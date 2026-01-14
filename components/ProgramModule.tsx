@@ -6,25 +6,25 @@ interface ProgramModuleProps {
   activities: Activity[];
   onProgramLoaded: (activities: Activity[]) => void;
   currentLocation: Location;
+  promoterId: string;
 }
 
-const ProgramModule: React.FC<ProgramModuleProps> = ({ activities, onProgramLoaded, currentLocation }) => {
+const ProgramModule: React.FC<ProgramModuleProps> = ({ activities, onProgramLoaded, currentLocation, promoterId }) => {
   const [isImporting, setIsImporting] = useState(false);
   const [sheetUrl, setSheetUrl] = useState('');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [viewMode, setViewMode] = useState<'agenda' | 'import'>('agenda');
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
 
-  // Filtrar actividades por fecha seleccionada
   const dayActivities = useMemo(() => {
     return activities
       .filter(a => a.date === selectedDate)
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [activities, selectedDate]);
 
-  // Generar los próximos 14 días para el selector de fecha superior
   const dateRange = useMemo(() => {
     const dates = [];
-    for (let i = -2; i < 12; i++) {
+    for (let i = -3; i < 11; i++) {
       const d = new Date();
       d.setDate(d.getDate() + i);
       dates.push({
@@ -36,6 +36,40 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({ activities, onProgramLoad
     return dates;
   }, []);
 
+  const simulateFileImport = (type: 'excel' | 'pdf' | 'word') => {
+    setIsImporting(true);
+    setTimeout(() => {
+      const today = new Date();
+      const mockProgram: Activity[] = [
+        {
+          id: `p-${Date.now()}-f1`,
+          promoterId: promoterId,
+          date: today.toISOString().split('T')[0],
+          time: '14:00',
+          community: 'Comunidad La Esperanza',
+          objective: `Carga vía ${type.toUpperCase()}: Levantamiento Social`,
+          attendeeName: 'Comité Local',
+          attendeeRole: 'Varios',
+          attendeePhone: 'N/A',
+          proposals: 'Evaluar daños por lluvias recientes.',
+          problemsIdentified: ProblemType.OTRAS,
+          type: ActivityType.COMMUNITY_VISIT,
+          agreements: 'Se entregará informe técnico el viernes.',
+          additionalObservations: `Documento procesado: agenda_${type}.bin`,
+          driveLinks: '',
+          referral: 'Protección Civil',
+          companions: 'Personal de Apoyo',
+          status: ActivityStatus.PENDING,
+          location: currentLocation
+        }
+      ];
+      onProgramLoaded(mockProgram);
+      setIsImporting(false);
+      setViewMode('agenda');
+      alert(`Programación desde ${type.toUpperCase()} cargada exitosamente.`);
+    }, 2000);
+  };
+
   const simulateGoogleSheetImport = () => {
     if (!sheetUrl.includes('docs.google.com/spreadsheets')) {
       alert("Por favor ingresa una URL válida de Google Sheets");
@@ -43,13 +77,12 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({ activities, onProgramLoad
     }
     
     setIsImporting(true);
-    
     setTimeout(() => {
       const today = new Date();
       const mockProgram: Activity[] = [
         {
           id: `p-${Date.now()}-1`,
-          promoterId: 'current',
+          promoterId: promoterId, // FIXED: Usar ID real del promotor
           date: today.toISOString().split('T')[0],
           time: '08:00',
           community: 'Colonia Flor Blanca',
@@ -67,30 +100,8 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({ activities, onProgramLoad
           companions: 'Janira A., Pedro G.',
           status: ActivityStatus.PENDING,
           location: currentLocation
-        },
-        {
-          id: `p-${Date.now()}-2`,
-          promoterId: 'current',
-          date: new Date(today.getTime() + 86400000).toISOString().split('T')[0],
-          time: '10:30',
-          community: 'Comunidad El Milagro',
-          objective: 'Carga Masiva: Entrega de Material Didáctico',
-          attendeeName: 'Prof. Mario Quintanilla',
-          attendeeRole: 'Director Centro Escolar',
-          attendeePhone: '2233-1122',
-          proposals: 'Abastecer kits de papelería para 150 alumnos.',
-          problemsIdentified: ProblemType.OTRAS,
-          type: ActivityType.SOCIAL_ACTIVITY,
-          agreements: 'Firma de acta de recepción.',
-          additionalObservations: 'Prioridad alta - Evento con medios',
-          driveLinks: '',
-          referral: 'Desarrollo Social',
-          companions: 'Equipo Comunicación',
-          status: ActivityStatus.PENDING,
-          location: currentLocation
         }
       ];
-      
       onProgramLoaded(mockProgram);
       setIsImporting(false);
       setSheetUrl('');
@@ -99,177 +110,223 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({ activities, onProgramLoad
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Selector de Vista */}
-      <div className="flex bg-slate-100 p-1.5 rounded-2xl w-full max-w-sm mx-auto shadow-inner">
+    <div className="space-y-6 animate-in fade-in duration-500 font-sans">
+      {/* Tab Selector */}
+      <div className="flex bg-slate-200/50 p-1.5 rounded-[1.5rem] w-full max-w-sm mx-auto shadow-inner border border-slate-100">
         <button 
           onClick={() => setViewMode('agenda')}
-          className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'agenda' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+          className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'agenda' ? 'bg-white text-indigo-600 shadow-xl' : 'text-slate-400 hover:text-slate-600'}`}
         >
           <i className="fa-solid fa-calendar-check mr-2"></i> Mi Agenda
         </button>
         <button 
           onClick={() => setViewMode('import')}
-          className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'import' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+          className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'import' ? 'bg-white text-emerald-600 shadow-xl' : 'text-slate-400 hover:text-slate-600'}`}
         >
-          <i className="fa-solid fa-file-import mr-2"></i> Importar
+          <i className="fa-solid fa-file-import mr-2"></i> Cargar
         </button>
       </div>
 
       {viewMode === 'agenda' ? (
         <div className="space-y-8">
-          {/* Calendario Horizontal (Selector de Fecha) */}
-          <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
-            <div className="flex overflow-x-auto no-scrollbar gap-4 pb-2">
+          {/* Calendar Carousel */}
+          <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden relative">
+            <div className="flex overflow-x-auto no-scrollbar gap-5 pb-2 scroll-smooth">
               {dateRange.map((date) => (
                 <button
                   key={date.full}
                   onClick={() => setSelectedDate(date.full)}
-                  className={`flex-shrink-0 w-16 h-24 rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 ${
+                  className={`flex-shrink-0 w-20 h-28 rounded-3xl border-2 transition-all flex flex-col items-center justify-center gap-2 ${
                     selectedDate === date.full
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md scale-105'
-                    : 'border-slate-50 bg-slate-50 text-slate-400 hover:border-slate-200'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-lg scale-110 z-10'
+                    : 'border-slate-50 bg-slate-50 text-slate-300 hover:border-slate-200 hover:text-slate-500'
                   }`}
                 >
-                  <span className="text-[10px] font-black uppercase">{date.day}</span>
-                  <span className="text-xl font-black leading-none">{date.num}</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest">{date.day}</span>
+                  <span className="text-2xl font-black leading-none">{date.num}</span>
                   {activities.some(a => a.date === date.full) && (
-                    <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></div>
+                    <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse"></div>
                   )}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Listado de Actividades del Día */}
+          {/* Activities List */}
           <div className="space-y-6">
-            <div className="px-4">
-              <h3 className="text-xl font-black text-slate-800 tracking-tight">Actividades Programadas</h3>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
-                {new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-              </p>
+            <div className="flex justify-between items-end px-4">
+              <div>
+                <h3 className="text-2xl font-black text-slate-800 tracking-tight">Actividades Programadas</h3>
+                <p className="text-xs text-slate-400 font-black uppercase tracking-widest mt-1">
+                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl uppercase tracking-widest border border-indigo-100">
+                  {dayActivities.length} LABORES
+                </span>
+              </div>
             </div>
 
             {dayActivities.length > 0 ? (
               <div className="grid grid-cols-1 gap-6">
                 {dayActivities.map(activity => (
-                  <div key={activity.id} className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden p-8 flex flex-col md:flex-row gap-8 hover:shadow-md transition-all">
-                    {/* Time & Type */}
-                    <div className="md:w-32 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-100 pb-6 md:pb-0 md:pr-6">
-                      <p className="text-3xl font-black text-slate-800 tracking-tighter">{activity.time}</p>
-                      <span className="text-[9px] font-black uppercase text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full mt-2 text-center">
+                  <div 
+                    key={activity.id} 
+                    onClick={() => setSelectedActivity(activity)}
+                    className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden p-10 flex flex-col md:flex-row gap-10 hover:shadow-xl hover:border-indigo-200 transition-all cursor-pointer group"
+                  >
+                    <div className="md:w-32 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-100 pb-8 md:pb-0 md:pr-10">
+                      <p className="text-4xl font-black text-slate-800 tracking-tighter group-hover:text-indigo-600 transition-colors">{activity.time}</p>
+                      <span className="text-[8px] font-black uppercase text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full mt-3 text-center border border-indigo-100">
                         {activity.type}
                       </span>
                     </div>
 
-                    {/* Main Content */}
-                    <div className="flex-1 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <i className="fa-solid fa-location-dot text-red-500"></i>
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{activity.community}</span>
+                    <div className="flex-1 space-y-5">
+                      <div className="flex items-center gap-3">
+                        <i className="fa-solid fa-location-dot text-red-500 text-lg"></i>
+                        <span className="text-xs font-black uppercase text-slate-400 tracking-[0.2em]">{activity.community}</span>
                       </div>
-                      <h4 className="text-2xl font-black text-slate-800 leading-tight">{activity.objective}</h4>
+                      <h4 className="text-3xl font-black text-slate-800 leading-tight tracking-tight">{activity.objective}</h4>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                      <div className="flex flex-wrap gap-10 pt-4">
                         <div className="space-y-1">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Contacto</p>
-                          <p className="text-sm font-bold text-slate-700">{activity.attendeeName}</p>
-                          <p className="text-xs text-slate-400">{activity.attendeeRole} • {activity.attendeePhone}</p>
+                          <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">Responsable Local</p>
+                          <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <i className="fa-solid fa-user-circle text-indigo-300"></i>
+                            {activity.attendeeName}
+                          </p>
                         </div>
                         <div className="space-y-1">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Referido a</p>
-                          <p className="text-sm font-bold text-slate-700">{activity.referral || '---'}</p>
+                          <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">Estado</p>
+                          <p className={`text-xs font-black uppercase ${activity.status === ActivityStatus.COMPLETED ? 'text-emerald-500' : 'text-amber-500'}`}>
+                            {activity.status}
+                          </p>
                         </div>
                       </div>
-
-                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 mt-2">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Propuestas Previas</p>
-                        <p className="text-xs text-slate-600 leading-relaxed italic">"{activity.proposals || 'Sin propuestas registradas.'}"</p>
-                      </div>
-                    </div>
-
-                    {/* Status Button (Desktop Right) */}
-                    <div className="flex items-center">
-                       <div className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 transition-all ${
-                         activity.status === ActivityStatus.COMPLETED 
-                         ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
-                         : 'bg-amber-50 border-amber-100 text-amber-600 animate-pulse'
-                       }`}>
-                         {activity.status === ActivityStatus.COMPLETED ? (
-                           <><i className="fa-solid fa-check-double mr-2"></i> Ejecutado</>
-                         ) : (
-                           <><i className="fa-solid fa-clock mr-2"></i> Pendiente</>
-                         )}
-                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="bg-white rounded-[2.5rem] border border-dashed border-slate-200 p-20 text-center space-y-4">
-                <div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mx-auto text-3xl">
+              <div className="bg-white rounded-[3rem] border-4 border-dashed border-slate-100 p-24 text-center space-y-6">
+                <div className="w-24 h-24 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mx-auto text-4xl shadow-inner">
                   <i className="fa-solid fa-calendar-xmark"></i>
                 </div>
                 <div>
-                  <h4 className="font-black text-slate-800 text-lg">No hay programación para este día</h4>
-                  <p className="text-sm text-slate-400">Puedes importar nuevas actividades desde el botón de arriba</p>
+                  <h4 className="font-black text-slate-800 text-2xl tracking-tight">Día libre de programación</h4>
+                  <p className="text-sm text-slate-400 font-medium max-w-xs mx-auto mt-2">No tienes actividades asignadas para esta fecha. ¡Buen trabajo!</p>
                 </div>
+                <button onClick={() => setViewMode('import')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-8 py-3 rounded-2xl border border-indigo-100 hover:bg-indigo-100 transition-all">Importar Nueva Carga</button>
               </div>
             )}
           </div>
         </div>
       ) : (
-        /* VISTA DE IMPORTACIÓN */
-        <div className="bg-white rounded-[3rem] shadow-sm border border-slate-200 p-12 space-y-10 animate-in slide-in-from-bottom-4 duration-500">
-          <div className="flex items-center gap-6">
-            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-[1.5rem] flex items-center justify-center text-3xl shadow-inner">
-              <i className="fa-solid fa-file-excel"></i>
+        /* IMPORT VIEW */
+        <div className="space-y-8">
+          <div className="bg-white rounded-[3rem] shadow-sm border border-slate-200 p-12 space-y-12">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-[1.5rem] flex items-center justify-center text-3xl shadow-inner">
+                <i className="fa-solid fa-cloud-arrow-up"></i>
+              </div>
+              <div>
+                <h2 className="text-3xl font-black text-slate-800 tracking-tight">Cargar Programación</h2>
+                <p className="text-sm text-slate-400 font-medium">Sincroniza tu agenda desde diversas fuentes externas</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Cargar Programación Semanal</h2>
-              <p className="text-sm text-slate-400 font-medium">Sincroniza tu agenda directamente desde Google Sheets</p>
-            </div>
-          </div>
 
-          <div className="space-y-4">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">URL de la Hoja de Cálculo (Google Sheets)</label>
-            <div className="flex flex-col md:flex-row gap-4">
-              <input 
-                type="text" 
-                placeholder="https://docs.google.com/spreadsheets/d/..."
-                className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-sm focus:border-emerald-500 outline-none transition-all font-medium"
-                value={sheetUrl}
-                onChange={(e) => setSheetUrl(e.target.value)}
-              />
-              <button 
-                onClick={simulateGoogleSheetImport}
-                disabled={isImporting || !sheetUrl}
-                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center transition-all shadow-xl shadow-emerald-100 active:scale-95"
-              >
-                {isImporting ? (
-                  <><i className="fa-solid fa-circle-notch animate-spin mr-3 text-lg"></i> Procesando...</>
-                ) : (
-                  <><i className="fa-solid fa-cloud-arrow-up mr-3 text-lg"></i> Importar Agenda</>
-                )}
-              </button>
+            {/* Google Sheets Section */}
+            <div className="space-y-4">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">Sincronizar Google Sheets</label>
+              <div className="flex flex-col md:flex-row gap-4">
+                <input 
+                  type="text" 
+                  placeholder="Pega el enlace de tu hoja de cálculo..."
+                  className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-5 text-sm focus:border-emerald-500 outline-none transition-all font-bold"
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                />
+                <button 
+                  onClick={simulateGoogleSheetImport}
+                  disabled={isImporting || !sheetUrl}
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center transition-all shadow-xl shadow-emerald-100"
+                >
+                  {isImporting ? <i className="fa-solid fa-circle-notch animate-spin text-lg"></i> : 'IMPORTAR'}
+                </button>
+              </div>
             </div>
-          </div>
-          
-          <div className="p-6 bg-slate-50 rounded-3xl border border-dashed border-slate-200 flex gap-5 items-start">
-            <i className="fa-solid fa-circle-info text-2xl text-indigo-500 mt-1"></i>
-            <div className="text-xs text-slate-500 leading-relaxed">
-              <p className="font-black text-slate-700 uppercase tracking-widest mb-1">Instrucciones de Formato:</p>
-              Asegúrate de que la hoja sea pública o compartida con el correo institucional. El archivo debe contener las columnas: <span className="font-bold text-indigo-600 italic">Fecha, Hora, Comunidad, Objetivo y Contacto</span> para una sincronización correcta.
-            </div>
-          </div>
 
-          <div className="pt-6">
-            <button 
-              onClick={() => setViewMode('agenda')}
-              className="text-[10px] font-black text-slate-400 hover:text-slate-800 uppercase tracking-widest flex items-center gap-2 transition-colors"
-            >
-              <i className="fa-solid fa-arrow-left"></i> Volver a mi agenda
-            </button>
+            {/* File Format Section */}
+            <div className="space-y-6 pt-6 border-t border-slate-100">
+               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1 block">O cargar archivo institucional</label>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <button onClick={() => simulateFileImport('excel')} className="file-btn text-emerald-600 bg-emerald-50 border-emerald-100 hover:bg-emerald-100">
+                    <i className="fa-solid fa-file-excel text-3xl mb-3"></i>
+                    <span>Excel (.xlsx)</span>
+                  </button>
+                  <button onClick={() => simulateFileImport('word')} className="file-btn text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100">
+                    <i className="fa-solid fa-file-word text-3xl mb-3"></i>
+                    <span>Word (.docx)</span>
+                  </button>
+                  <button onClick={() => simulateFileImport('pdf')} className="file-btn text-red-600 bg-red-50 border-red-100 hover:bg-red-100">
+                    <i className="fa-solid fa-file-pdf text-3xl mb-3"></i>
+                    <span>PDF (.pdf)</span>
+                  </button>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activity Detail Modal */}
+      {selectedActivity && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
+          <div className="bg-white rounded-[4rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+             <div className="p-12 space-y-8">
+                <div className="flex justify-between items-start">
+                   <div className="space-y-2">
+                      <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-full uppercase tracking-widest">{selectedActivity.type}</span>
+                      <h3 className="text-4xl font-black text-slate-800 tracking-tight leading-none mt-4">{selectedActivity.time}</h3>
+                   </div>
+                   <button onClick={() => setSelectedActivity(null)} className="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 transition-all border border-slate-100">
+                      <i className="fa-solid fa-xmark text-2xl"></i>
+                   </button>
+                </div>
+
+                <div className="space-y-6">
+                   <div className="p-8 bg-slate-50 rounded-3xl border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Objetivo Programado</p>
+                      <p className="text-lg font-bold text-slate-800 leading-relaxed">{selectedActivity.objective}</p>
+                   </div>
+
+                   <div className="grid grid-cols-2 gap-6">
+                      <div className="p-6 bg-white border border-slate-200 rounded-3xl">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Comunidad</p>
+                        <p className="text-sm font-bold text-slate-800">{selectedActivity.community}</p>
+                      </div>
+                      <div className="p-6 bg-white border border-slate-200 rounded-3xl">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Contacto</p>
+                        <p className="text-sm font-bold text-slate-800">{selectedActivity.attendeeName}</p>
+                      </div>
+                   </div>
+
+                   {selectedActivity.assignedBy && (
+                     <div className="flex items-center gap-3 px-2">
+                        <i className="fa-solid fa-shield-check text-indigo-600"></i>
+                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Actividad Asignada por Administración</p>
+                     </div>
+                   )}
+                </div>
+
+                <button 
+                  onClick={() => setSelectedActivity(null)}
+                  className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl hover:bg-black transition-all"
+                >
+                  Cerrar Detalle
+                </button>
+             </div>
           </div>
         </div>
       )}
@@ -277,6 +334,25 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({ activities, onProgramLoad
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .file-btn {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 2rem;
+          border-radius: 2.5rem;
+          border-width: 2px;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          font-size: 0.75rem;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.15em;
+        }
+        .file-btn:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 20px 40px -10px currentColor;
+        }
       `}</style>
     </div>
   );

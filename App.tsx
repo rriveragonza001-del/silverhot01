@@ -12,13 +12,14 @@ import TeamModule from './components/TeamModule';
 import Login from './components/Login';
 import UserManagementModule from './components/UserManagementModule';
 import AdminNotificationModule from './components/AdminNotificationModule';
+import AdminAssignmentModule from './components/AdminAssignmentModule';
 
-type View = 'dashboard' | 'tracking' | 'activities' | 'reports' | 'program' | 'final-report' | 'admin-custom-reports' | 'team' | 'user-management' | 'admin-notifications';
+type View = 'dashboard' | 'tracking' | 'activities' | 'reports' | 'program' | 'final-report' | 'admin-custom-reports' | 'team' | 'user-management' | 'admin-notifications' | 'admin-assignments';
 
 const STORAGE_KEYS = {
-  PROMOTERS: 'pf_promoters_final_v3',
-  ACTIVITIES: 'pf_activities_final_v3',
-  NOTIFICATIONS: 'pf_notifications_final_v3',
+  PROMOTERS: 'pf_promoters_final_v4',
+  ACTIVITIES: 'pf_activities_final_v4',
+  NOTIFICATIONS: 'pf_notifications_final_v4',
   AUTH_ID: 'pf_auth_user_id',
   AUTH_ROLE: 'pf_auth_user_role'
 };
@@ -52,8 +53,10 @@ const App: React.FC = () => {
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  
+  // Para que el Admin vea la agenda de un gestor específico
+  const [adminViewPromoterId, setAdminViewPromoterId] = useState<string>('ALL');
 
-  // Persistencia Blindada
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(promoters));
     localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(activities));
@@ -90,14 +93,21 @@ const App: React.FC = () => {
     setActivities(prev => [activityWithPromoter, ...prev]);
   };
 
+  const handleAdminAssignActivities = (newActivities: Activity[]) => {
+    setActivities(prev => [...newActivities, ...prev]);
+  };
+
   const currentPromoter = useMemo(() => {
     return promoters.find(p => p.id === currentPromoterId) || promoters[0];
   }, [promoters, currentPromoterId]);
 
   const filteredActivities = useMemo(() => {
-    if (userRole === UserRole.ADMIN) return activities;
+    if (userRole === UserRole.ADMIN) {
+        if (adminViewPromoterId === 'ALL') return activities;
+        return activities.filter(a => a.promoterId === adminViewPromoterId);
+    }
     return activities.filter(a => a.promoterId === currentPromoterId);
-  }, [activities, userRole, currentPromoterId]);
+  }, [activities, userRole, currentPromoterId, adminViewPromoterId]);
 
   const handleLogin = (role: UserRole, userId: string) => {
     setUserRole(role);
@@ -119,12 +129,13 @@ const App: React.FC = () => {
     { id: 'dashboard', label: 'Inicio', icon: 'fa-gauge-high' },
     { id: 'tracking', label: 'GPS', icon: 'fa-location-dot' },
     { id: 'activities', label: 'Registro', icon: 'fa-clipboard-list' },
+    { id: 'admin-assignments', label: 'Asignar', icon: 'fa-tasks', adminOnly: true },
     { id: 'team', label: 'Equipo', icon: 'fa-users-line', adminOnly: true },
     { id: 'user-management', label: 'Usuarios', icon: 'fa-user-gear', adminOnly: true },
     { id: 'admin-notifications', label: 'Avisos', icon: 'fa-bullhorn', adminOnly: true },
     { id: 'reports', label: 'Resumen IA', icon: 'fa-chart-pie', adminOnly: true },
     { id: 'admin-custom-reports', label: 'Reportes', icon: 'fa-file-invoice-dollar', adminOnly: true },
-    { id: 'program', label: 'Agenda', icon: 'fa-calendar-plus', promoterOnly: true },
+    { id: 'program', label: 'Agenda', icon: 'fa-calendar-plus' },
     { id: 'final-report', label: 'Exportar', icon: 'fa-file-invoice', promoterOnly: true },
   ].filter(item => {
     if (item.adminOnly && userRole !== UserRole.ADMIN) return false;
@@ -150,7 +161,7 @@ const App: React.FC = () => {
             </div>
             <div>
               <span className="text-2xl font-black tracking-tight text-white block leading-none">Promoter<span className="text-indigo-500">Flow</span></span>
-              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">Control de Gestión</span>
+              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">Gestión Institucional</span>
             </div>
           </div>
           <nav className="flex-1 px-5 mt-4 space-y-1.5 overflow-y-auto no-scrollbar">
@@ -193,6 +204,22 @@ const App: React.FC = () => {
               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
             </div>
           </div>
+          
+          {userRole === UserRole.ADMIN && activeView === 'program' && (
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ver Agenda de:</span>
+              <select 
+                value={adminViewPromoterId} 
+                onChange={e => setAdminViewPromoterId(e.target.value)}
+                className="bg-slate-100 border-none rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="ALL">TODOS (VISTA GRUPAL)</option>
+                {promoters.filter(p => p.role === UserRole.FIELD_PROMOTER).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </header>
 
         <div className="flex-1 overflow-y-auto scroll-native pb-24 lg:pb-8">
@@ -217,6 +244,7 @@ const App: React.FC = () => {
             {activeView === 'team' && <TeamModule promoters={promoters} />}
             {activeView === 'user-management' && <UserManagementModule users={promoters} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} />}
             {activeView === 'admin-notifications' && <AdminNotificationModule promoters={promoters.filter(p => p.role === UserRole.FIELD_PROMOTER)} onSendNotification={(n) => {}} />}
+            {activeView === 'admin-assignments' && <AdminAssignmentModule adminId={currentPromoterId} promoters={promoters.filter(p => p.role === UserRole.FIELD_PROMOTER)} onAssignActivities={handleAdminAssignActivities} />}
             {activeView === 'tracking' && <TrackingMap promoters={promoters} />}
             {activeView === 'activities' && (
               <ActivityLog 
@@ -231,6 +259,7 @@ const App: React.FC = () => {
             {activeView === 'admin-custom-reports' && <AdminReportGenerator activities={activities} promoters={promoters} />}
             {activeView === 'program' && (
               <ProgramModule 
+                promoterId={userRole === UserRole.ADMIN ? adminViewPromoterId : currentPromoterId}
                 activities={filteredActivities} 
                 onProgramLoaded={(newActs) => setActivities(prev => [...newActs, ...prev])} 
                 currentLocation={currentPromoter.lastLocation} 
