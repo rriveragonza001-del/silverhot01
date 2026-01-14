@@ -22,10 +22,36 @@ const App: React.FC = () => {
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   
-  const [promoters, setPromoters] = useState<Promoter[]>(MOCK_PROMOTERS);
-  const [activities, setActivities] = useState<Activity[]>(MOCK_ACTIVITIES);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  // Persistence logic: Load initial data from LocalStorage or Fallback to Mocks
+  const [promoters, setPromoters] = useState<Promoter[]>(() => {
+    const saved = localStorage.getItem('pf_promoters');
+    return saved ? JSON.parse(saved) : MOCK_PROMOTERS;
+  });
+  
+  const [activities, setActivities] = useState<Activity[]>(() => {
+    const saved = localStorage.getItem('pf_activities');
+    return saved ? JSON.parse(saved) : MOCK_ACTIVITIES;
+  });
+  
+  const [notifications, setNotifications] = useState<Notification[]>(() => {
+    const saved = localStorage.getItem('pf_notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [isNewActivityModalOpen, setIsNewActivityModalOpen] = useState(false);
+
+  // Sync data to LocalStorage whenever state changes
+  useEffect(() => {
+    localStorage.setItem('pf_promoters', JSON.stringify(promoters));
+  }, [promoters]);
+
+  useEffect(() => {
+    localStorage.setItem('pf_activities', JSON.stringify(activities));
+  }, [activities]);
+
+  useEffect(() => {
+    localStorage.setItem('pf_notifications', JSON.stringify(notifications));
+  }, [notifications]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -33,7 +59,7 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleAddUser = (user: Promoter) => setPromoters(prev => [...prev, user]);
+  const handleAddUser = (user: Promoter) => setPromoters(prev => [user, ...prev]);
   const handleUpdateUser = (id: string, updates: Partial<Promoter>) => setPromoters(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
   const handleDeleteUser = (id: string) => {
     if(window.confirm('¿Estás seguro de eliminar a este usuario?')) {
@@ -95,24 +121,33 @@ const App: React.FC = () => {
       location: currentPromoter.lastLocation,
       verificationPhoto: 'https://picsum.photos/seed/' + Math.random() + '/400/300'
     };
-    setActivities([activity, ...activities]);
+    setActivities(prev => [activity, ...prev]);
     sendAdminNotification('Nueva Actividad', `${currentPromoter.name} registró una nueva labor: ${activity.title}`, 'NEW_ACTION');
     setIsNewActivityModalOpen(false);
+    // Reset form
+    setNewActivity({
+      type: ActivityType.COMMUNITY_VISIT,
+      status: ActivityStatus.IN_PROGRESS,
+      date: new Date().toISOString().split('T')[0],
+      startTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+      communityContact: { name: '', phone: '', hasWhatsApp: false, role: '', community: '' }
+    });
   };
 
-  const handleLogin = (role: UserRole) => {
+  const handleLogin = (role: UserRole, userId: string) => {
     setUserRole(role);
+    setCurrentPromoterId(userId);
     setIsAuthenticated(true);
+    
+    setPromoters(prev => prev.map(p => p.id === userId ? { ...p, isOnline: true, lastConnection: new Date().toISOString() } : p));
+    
     if (role === UserRole.FIELD_PROMOTER) {
-      setPromoters(prev => prev.map(p => p.id === 'p1' ? { ...p, isOnline: true, lastConnection: new Date().toISOString() } : p));
-      sendAdminNotification('Sesión Iniciada', `El gestor ${currentPromoter.name} ha ingresado al sistema.`, 'USER_LOGIN');
+      sendAdminNotification('Sesión Iniciada', `El gestor ha ingresado al sistema. GPS Activo.`, 'USER_LOGIN', userId);
     }
   };
 
   const handleLogout = () => {
-    if (userRole === UserRole.FIELD_PROMOTER) {
-      setPromoters(prev => prev.map(p => p.id === 'p1' ? { ...p, isOnline: false, lastConnection: new Date().toISOString() } : p));
-    }
+    setPromoters(prev => prev.map(p => p.id === currentPromoterId ? { ...p, isOnline: false, lastConnection: new Date().toISOString() } : p));
     setIsAuthenticated(false);
   };
 
@@ -133,7 +168,7 @@ const App: React.FC = () => {
     return true;
   });
 
-  if (!isAuthenticated) return <Login onLogin={handleLogin} />;
+  if (!isAuthenticated) return <Login onLogin={handleLogin} users={promoters} />;
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
@@ -165,6 +200,13 @@ const App: React.FC = () => {
             <button onClick={handleLogout} className="w-full bg-slate-800/50 hover:bg-red-900/20 hover:text-red-400 p-3 rounded-xl flex items-center gap-3 text-xs font-bold transition-all">
               <i className="fa-solid fa-right-from-bracket"></i> Salir
             </button>
+            <div className="mt-4 p-3 bg-slate-800 rounded-xl flex items-center gap-3">
+              <img src={currentPromoter.photo} className="w-8 h-8 rounded-full border border-slate-700" alt="me" />
+              <div className="overflow-hidden">
+                <p className="text-[10px] font-black text-white truncate">{currentPromoter.name}</p>
+                <p className="text-[8px] text-slate-500 uppercase font-bold">{userRole}</p>
+              </div>
+            </div>
           </div>
         </aside>
       )}
@@ -187,21 +229,12 @@ const App: React.FC = () => {
                 <i className="fa-solid fa-bell"></i>
                 {visibleNotifications.some(n => !n.read) && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}
               </div>
-              <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all z-50 overflow-hidden">
-                <div className="p-4 bg-slate-50 border-b border-slate-100"><p className="font-bold text-xs uppercase tracking-widest text-slate-400">Notificaciones</p></div>
-                <div className="max-h-64 overflow-y-auto">
-                  {visibleNotifications.slice(0, 5).map(n => (
-                    <div key={n.id} className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                      <p className="text-[11px] font-bold text-slate-800">{n.title}</p>
-                      <p className="text-[10px] text-slate-500 line-clamp-2">{n.message}</p>
-                    </div>
-                  ))}
-                  {visibleNotifications.length === 0 && <div className="p-8 text-center text-slate-300 text-xs">Sin avisos</div>}
-                </div>
-              </div>
             </div>
             {isMobile && userRole === UserRole.FIELD_PROMOTER && (
               <button onClick={() => setIsNewActivityModalOpen(true)} className="w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90"><i className="fa-solid fa-plus"></i></button>
+            )}
+            {isMobile && (
+              <button onClick={handleLogout} className="w-10 h-10 bg-slate-100 text-red-500 rounded-full flex items-center justify-center"><i className="fa-solid fa-power-off"></i></button>
             )}
           </div>
         </header>

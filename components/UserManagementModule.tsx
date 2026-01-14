@@ -17,6 +17,7 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
     name: '',
     email: '',
     phone: '',
+    password: '',
     position: '',
     zone: '',
     role: UserRole.FIELD_PROMOTER,
@@ -35,7 +36,7 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
       const newUser: Promoter = {
         ...formData,
         id: 'p' + Date.now(),
-        lastLocation: { lat: 0, lng: 0 },
+        lastLocation: { lat: 19.4326, lng: -99.1332 }, // Default location
         lastUpdated: new Date().toISOString(),
         lastConnection: new Date().toISOString(),
       } as Promoter;
@@ -139,28 +140,32 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200 my-8">
             <div className="px-8 py-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <h3 className="text-xl font-bold text-slate-800">{editingUser ? 'Modificar Usuario' : 'Crear Nuevo Usuario'}</h3>
               <button onClick={closeModal} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark text-2xl"></i></button>
             </div>
             <form onSubmit={handleSubmit} className="p-8 space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
+                <div className="space-y-1 col-span-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase px-1">Nombre Completo</label>
                   <input required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Correo Electrónico</label>
-                  <input required type="email" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Usuario / Email de Acceso</label>
+                  <input required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Cargo</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Contraseña de Acceso</label>
+                  <input required type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Cargo Institucional</label>
                   <input required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm" value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Teléfono</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Teléfono Móvil</label>
                   <input required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                 </div>
                 <div className="space-y-1">
@@ -168,8 +173,8 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
                   <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm" value={formData.zone} onChange={e => setFormData({...formData, zone: e.target.value})} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Rol en App</label>
-                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as UserRole})}>
+                  <label className="text-[10px] font-black text-slate-400 uppercase px-1">Rol en Plataforma</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as UserRole})}>
                     <option value={UserRole.FIELD_PROMOTER}>Gestor de Campo</option>
                     <option value={UserRole.ADMIN}>Administrador</option>
                   </select>
@@ -177,7 +182,7 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
               </div>
               <div className="flex justify-end gap-3 pt-4">
                 <button type="button" onClick={closeModal} className="px-6 py-2.5 text-sm font-bold text-slate-400">Cancelar</button>
-                <button type="submit" className="bg-indigo-600 text-white px-8 py-2.5 rounded-xl font-bold text-sm shadow-xl shadow-indigo-200">{editingUser ? 'Guardar Cambios' : 'Crear Usuario'}</button>
+                <button type="submit" className="bg-indigo-600 text-white px-8 py-2.5 rounded-xl font-black text-xs uppercase shadow-xl shadow-indigo-200 active:scale-95 transition-transform">{editingUser ? 'Actualizar Datos' : 'Registrar Usuario'}</button>
               </div>
             </form>
           </div>

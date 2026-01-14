@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
-import { UserRole } from '../types';
+import { UserRole, Promoter } from '../types';
 
 interface LoginProps {
-  onLogin: (role: UserRole) => void;
+  onLogin: (role: UserRole, userId: string) => void;
+  users: Promoter[];
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -17,22 +18,23 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setIsLoading(true);
     setError('');
 
-    // Mock authentication
+    // Check credentials against the users list
     setTimeout(() => {
-      if (username === 'admin' && password === 'admin123') {
-        onLogin(UserRole.ADMIN);
-      } else if (username === 'gestor' && password === 'gestor123') {
-        onLogin(UserRole.FIELD_PROMOTER);
+      const user = users.find(u => 
+        (u.email === username || u.name === username) && u.password === password
+      );
+
+      if (user) {
+        onLogin(user.role, user.id);
       } else {
-        setError('Credenciales inválidas. Use admin/admin123 o gestor/gestor123');
+        setError('Credenciales inválidas. Verifique su usuario y contraseña.');
       }
       setIsLoading(false);
-    }, 1000);
+    }, 800);
   };
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Decorative blobs */}
       <div className="absolute top-0 -left-20 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl"></div>
       <div className="absolute bottom-0 -right-20 w-96 h-96 bg-emerald-600/20 rounded-full blur-3xl"></div>
 
@@ -43,12 +45,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <i className="fa-solid fa-route text-3xl"></i>
             </div>
             <h1 className="text-3xl font-black text-slate-800 tracking-tight">Promoter<span className="text-indigo-600">Flow</span></h1>
-            <p className="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest">Sistema de Gestión de Campo</p>
+            <p className="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest">Acceso al Sistema</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">Usuario</label>
+              <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">Usuario / Email</label>
               <div className="relative">
                 <i className="fa-solid fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
                 <input 
@@ -89,13 +91,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               disabled={isLoading}
               className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black py-4 rounded-xl shadow-xl shadow-indigo-200 transition-all active:scale-95"
             >
-              {isLoading ? <i className="fa-solid fa-spinner animate-spin"></i> : 'INICIAR SESIÓN'}
+              {isLoading ? <i className="fa-solid fa-spinner animate-spin"></i> : 'ENTRAR AL PANEL'}
             </button>
           </form>
         </div>
 
         <div className="bg-slate-50 p-6 border-t border-slate-100 text-center">
-          <p className="text-xs text-slate-400 font-medium">© 2024 PromoterFlow v2.0 • Unidad de Sistemas</p>
+          <p className="text-xs text-slate-400 font-medium italic">admin/admin123 o gestor/gestor123</p>
         </div>
       </div>
     </div>

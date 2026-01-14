@@ -52,6 +52,7 @@ export interface Promoter {
   email: string;
   phone: string;
   position: string;
+  password?: string; // New field for security
   status: 'active' | 'inactive' | 'away';
   isOnline: boolean;
   lastLocation: Location;
