@@ -17,9 +17,9 @@ import AdminAssignmentModule from './components/AdminAssignmentModule';
 type View = 'dashboard' | 'tracking' | 'activities' | 'reports' | 'program' | 'final-report' | 'admin-custom-reports' | 'team' | 'user-management' | 'admin-notifications' | 'admin-assignments';
 
 const STORAGE_KEYS = {
-  PROMOTERS: 'pf_promoters_final_v4',
-  ACTIVITIES: 'pf_activities_final_v4',
-  NOTIFICATIONS: 'pf_notifications_final_v4',
+  PROMOTERS: 'pf_promoters_final_v5',
+  ACTIVITIES: 'pf_activities_final_v5',
+  NOTIFICATIONS: 'pf_notifications_final_v5',
   AUTH_ID: 'pf_auth_user_id',
   AUTH_ROLE: 'pf_auth_user_role'
 };
@@ -54,7 +54,6 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   
-  // Para que el Admin vea la agenda de un gestor específico
   const [adminViewPromoterId, setAdminViewPromoterId] = useState<string>('ALL');
 
   useEffect(() => {
@@ -86,15 +85,11 @@ const App: React.FC = () => {
   };
 
   const handleAddActivity = (activity: Activity) => {
-    const activityWithPromoter = {
-      ...activity,
-      promoterId: currentPromoterId
-    };
-    setActivities(prev => [activityWithPromoter, ...prev]);
+    setActivities(prev => [activity, ...prev]);
   };
 
-  const handleAdminAssignActivities = (newActivities: Activity[]) => {
-    setActivities(prev => [...newActivities, ...prev]);
+  const handleProgramLoaded = (newActs: Activity[]) => {
+    setActivities(prev => [...newActs, ...prev]);
   };
 
   const currentPromoter = useMemo(() => {
@@ -207,13 +202,13 @@ const App: React.FC = () => {
           
           {userRole === UserRole.ADMIN && activeView === 'program' && (
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ver Agenda de:</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtro Global:</span>
               <select 
                 value={adminViewPromoterId} 
                 onChange={e => setAdminViewPromoterId(e.target.value)}
                 className="bg-slate-100 border-none rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="ALL">TODOS (VISTA GRUPAL)</option>
+                <option value="ALL">TODOS LOS GESTORES</option>
                 {promoters.filter(p => p.role === UserRole.FIELD_PROMOTER).map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -244,7 +239,7 @@ const App: React.FC = () => {
             {activeView === 'team' && <TeamModule promoters={promoters} />}
             {activeView === 'user-management' && <UserManagementModule users={promoters} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} />}
             {activeView === 'admin-notifications' && <AdminNotificationModule promoters={promoters.filter(p => p.role === UserRole.FIELD_PROMOTER)} onSendNotification={(n) => {}} />}
-            {activeView === 'admin-assignments' && <AdminAssignmentModule adminId={currentPromoterId} promoters={promoters.filter(p => p.role === UserRole.FIELD_PROMOTER)} onAssignActivities={handleAdminAssignActivities} />}
+            {activeView === 'admin-assignments' && <AdminAssignmentModule adminId={currentPromoterId} promoters={promoters.filter(p => p.role === UserRole.FIELD_PROMOTER)} onAssignActivities={(acts) => setActivities(prev => [...acts, ...prev])} />}
             {activeView === 'tracking' && <TrackingMap promoters={promoters} />}
             {activeView === 'activities' && (
               <ActivityLog 
@@ -261,7 +256,7 @@ const App: React.FC = () => {
               <ProgramModule 
                 promoterId={userRole === UserRole.ADMIN ? adminViewPromoterId : currentPromoterId}
                 activities={filteredActivities} 
-                onProgramLoaded={(newActs) => setActivities(prev => [...newActs, ...prev])} 
+                onProgramLoaded={handleProgramLoaded} 
                 currentLocation={currentPromoter.lastLocation} 
               />
             )}
