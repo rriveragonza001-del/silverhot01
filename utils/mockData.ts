@@ -60,7 +60,8 @@ export const MOCK_ACTIVITIES: Activity[] = [
     startTime: '09:00',
     status: ActivityStatus.COMPLETED,
     location: { lat: 19.4326, lng: -99.1332 },
-    executionNotes: 'Se detectó falta de alumbrado. Vecinos conformes.',
+    // Fix: Using observations instead of executionNotes to match Activity interface
+    observations: 'Se detectó falta de alumbrado. Vecinos conformes.',
     communityContact: {
       name: 'Maria Lopez',
       phone: '555-0102',

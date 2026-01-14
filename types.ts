@@ -24,13 +24,6 @@ export enum UserRole {
   FIELD_PROMOTER = 'FIELD_PROMOTER'
 }
 
-export enum ReferralDepartment {
-  URBAN_DEVELOPMENT = 'Desarrollo Urbano',
-  PARKS_PLAZAS = 'Parques y Plazas',
-  CAM = 'CAM',
-  CITIZEN_COMPLAINTS = 'Denuncias Ciudadanas'
-}
-
 export enum ReportPeriod {
   DAILY = 'Diario',
   WEEKLY = 'Semanal',
@@ -58,7 +51,7 @@ export interface Promoter {
   photo: string;
   email: string;
   phone: string;
-  position: string; // "Cargo"
+  position: string;
   status: 'active' | 'inactive' | 'away';
   isOnline: boolean;
   lastLocation: Location;
@@ -79,16 +72,11 @@ export interface Activity {
   endTime?: string;
   status: ActivityStatus;
   location: Location;
-  executionNotes?: string;
   observations?: string;
   incidents?: string;
   adminComments?: string;
   verificationPhoto?: string;
   communityContact?: CommunityContact;
-  assignedBy?: string;
-  notified?: boolean;
-  referredTo?: ReferralDepartment;
-  needsAccompaniment?: boolean;
 }
 
 export interface Notification {
@@ -97,7 +85,7 @@ export interface Notification {
   message: string;
   timestamp: string;
   read: boolean;
-  type: 'ASSIGNMENT' | 'STATUS_CHANGE' | 'NEW_ACTION' | 'PROGRAM_UPLOAD' | 'ACCOMPANIMENT_REQUEST' | 'USER_LOGIN' | 'ADMIN_ANNOUNCEMENT' | 'ADMIN_WARNING';
+  type: 'ASSIGNMENT' | 'STATUS_CHANGE' | 'NEW_ACTION' | 'PROGRAM_UPLOAD' | 'USER_LOGIN' | 'ADMIN_ANNOUNCEMENT' | 'ADMIN_WARNING';
   senderId?: string;
-  recipientId?: string; // null for broadcast
+  recipientId?: string;
 }
