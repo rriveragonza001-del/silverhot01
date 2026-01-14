@@ -2,21 +2,24 @@
 import React, { useState } from 'react';
 import { Activity, ActivityStatus, ProblemType, Promoter, UserRole } from '../types';
 
-// Moved to top and fixed children prop type
-const FormField = ({ label, children }: { label: string, children?: React.ReactNode }) => (
-  <div className="space-y-1.5">
-    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{label}</label>
+// Componentes de interfaz para replicar la captura de pantalla
+// Se marcó children como opcional para corregir errores de compilación de TypeScript en el entorno de ejecución
+const Label = ({ children }: { children?: React.ReactNode }) => (
+  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2 block px-1">
     {children}
+  </label>
+);
+
+const DataBox = ({ value, subValue, className = "" }: { value: string, subValue?: string, className?: string }) => (
+  <div className={`bg-white px-5 py-4 rounded-2xl border border-slate-100 shadow-sm min-h-[58px] flex flex-col justify-center ${className}`}>
+    <p className="text-sm font-bold text-slate-800 leading-tight">{value || '---'}</p>
+    {subValue && <p className="text-[10px] text-slate-400 font-medium mt-1 uppercase">{subValue}</p>}
   </div>
 );
 
-const InfoBox = ({ label, value, subValue }: { label: string, value: string, subValue?: string }) => (
-  <div className="space-y-1">
-    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-    <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-sm">
-      <p className="text-xs font-bold text-slate-800 truncate">{value || 'N/A'}</p>
-      {subValue && <p className="text-[9px] text-slate-400 font-medium truncate">{subValue}</p>}
-    </div>
+const TextBox = ({ value, color = "text-slate-700", bg = "bg-white", border = "border-slate-100" }: { value: string, color?: string, bg?: string, border?: string }) => (
+  <div className={`${bg} p-6 rounded-2xl border ${border} shadow-sm min-h-[110px]`}>
+    <p className={`text-sm leading-relaxed ${color}`}>{value || 'Sin información registrada.'}</p>
   </div>
 );
 
@@ -48,14 +51,11 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
     driveLinks: '',
     referral: '',
     companions: '',
-    status: ActivityStatus.COMPLETED
+    status: ActivityStatus.COMPLETED // 1. Estado al momento de ingresar
   });
 
   const getPromoter = (id: string) => promoters.find(p => p.id === id);
-  
-  const filtered = activities.filter(a => {
-    return filter === 'ALL' || a.status === filter;
-  });
+  const filtered = activities.filter(a => filter === 'ALL' || a.status === filter);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,50 +63,50 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
       const newActivity = {
         ...formData,
         id: 'act-' + Date.now(),
-        location: { lat: 13.6929, lng: -89.2182 } // Default coordination
+        location: { lat: 13.6929, lng: -89.2182 }
       } as Activity;
       onAddActivity(newActivity);
       setIsModalOpen(false);
+      // Reset form
       setFormData({
-        date: new Date().toISOString().split('T')[0],
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        community: '',
-        objective: '',
-        attendeeName: '',
-        attendeeRole: '',
-        attendeePhone: '',
-        proposals: '',
-        problemsIdentified: ProblemType.OTRAS,
-        agreements: '',
-        additionalObservations: '',
-        driveLinks: '',
-        referral: '',
-        companions: '',
-        status: ActivityStatus.COMPLETED
+        ...formData,
+        community: '', objective: '', attendeeName: '', attendeeRole: '', attendeePhone: '', 
+        proposals: '', agreements: '', additionalObservations: '', driveLinks: '', referral: '', companions: ''
       });
+    }
+  };
+
+  const getStatusStyle = (status: ActivityStatus) => {
+    switch(status) {
+      case ActivityStatus.COMPLETED: return 'text-indigo-600 bg-indigo-50 border-indigo-100';
+      case ActivityStatus.IN_PROGRESS: return 'text-amber-600 bg-amber-50 border-amber-100';
+      case ActivityStatus.PENDING: return 'text-slate-500 bg-slate-50 border-slate-100';
+      case ActivityStatus.CANCELLED: return 'text-red-600 bg-red-50 border-red-100';
+      default: return 'text-slate-500 bg-slate-50';
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-200 gap-4">
+      {/* Header del Log */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 gap-6">
         <div>
-          <h2 className="text-xl font-black text-slate-800 tracking-tight">Bitácora de Labores</h2>
-          <p className="text-sm text-slate-500 font-medium">Historial detallado de acciones en territorio</p>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Registro de Actividades</h2>
+          <p className="text-sm text-slate-400 font-medium">Historial de gestiones y reporte de novedades</p>
         </div>
-        <div className="flex gap-3 w-full md:w-auto">
+        <div className="flex gap-4 w-full md:w-auto">
           <select 
             value={filter} 
             onChange={e => setFilter(e.target.value as any)} 
-            className="flex-1 md:flex-none bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 outline-none"
+            className="flex-1 md:flex-none bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 text-xs font-black text-slate-600 outline-none focus:border-indigo-600 transition-all"
           >
-            <option value="ALL">TODOS LOS ESTADOS</option>
-            {Object.values(ActivityStatus).map(s => <option key={s} value={s}>{s}</option>)}
+            <option value="ALL">TODOS LOS REGISTROS</option>
+            {Object.values(ActivityStatus).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
           </select>
           {userRole === UserRole.FIELD_PROMOTER && (
             <button 
               onClick={() => setIsModalOpen(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-200 transition-all active:scale-95 flex items-center gap-2"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95 flex items-center gap-2"
             >
               <i className="fa-solid fa-plus"></i>
               Registrar Acción
@@ -115,237 +115,272 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
+      {/* Lista de Actividades */}
+      <div className="space-y-6">
         {filtered.map(activity => {
           const isExpanded = expandedActivity === activity.id;
           const promoter = getPromoter(activity.promoterId);
+          
           return (
-            <div key={activity.id} className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
+            <div key={activity.id} className="bg-white rounded-[3rem] border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
+              {/* Resumen de la Tarjeta */}
               <div 
-                className="p-6 cursor-pointer"
+                className="p-10 cursor-pointer flex items-start justify-between gap-6"
                 onClick={() => setExpandedActivity(isExpanded ? null : activity.id)}
               >
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex gap-2">
-                    <span className="text-[9px] font-black uppercase text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+                <div className="flex-1 space-y-6">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-4 py-1.5 rounded-full border border-indigo-100">
                       {activity.community || 'Sin Comunidad'}
                     </span>
-                    <span className="text-[9px] font-black uppercase text-slate-500 bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
+                    <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-4 py-1.5 rounded-full border border-slate-100">
                       {activity.date}
                     </span>
                   </div>
-                  <i className={`fa-solid fa-chevron-${isExpanded ? 'up' : 'down'} text-slate-300`}></i>
-                </div>
-                
-                <h3 className="font-black text-slate-800 text-lg leading-tight mb-4">{activity.objective}</h3>
-                
-                <div className="flex flex-wrap items-center gap-6">
-                  <div className="flex items-center gap-2">
-                    <img src={promoter?.photo} className="w-8 h-8 rounded-xl object-cover border-2 border-white shadow-sm" />
+                  
+                  <h3 className="font-black text-slate-800 text-3xl leading-tight tracking-tight">
+                    {activity.objective}
+                  </h3>
+                  
+                  <div className="flex flex-wrap items-center gap-12 pt-2">
+                    <div className="flex items-center gap-4">
+                      <img src={promoter?.photo} className="w-12 h-12 rounded-2xl object-cover border-2 border-white shadow-md" />
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Gestor</p>
+                        <p className="text-sm font-bold text-slate-800">{promoter?.name}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="h-10 w-px bg-slate-100 hidden md:block"></div>
+                    
                     <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter leading-none">Gestor</p>
-                      <p className="text-xs font-bold text-slate-700">{promoter?.name}</p>
+                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Problemática</p>
+                      <p className="text-sm font-black text-red-500 uppercase">{activity.problemsIdentified}</p>
+                    </div>
+
+                    <div className="h-10 w-px bg-slate-100 hidden md:block"></div>
+
+                    {/* 2. Cambio de estado después de registrado (POST-REGISTRO) */}
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Estado</p>
+                      <select 
+                        value={activity.status}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => onUpdateActivity(activity.id, { status: e.target.value as ActivityStatus })}
+                        className={`text-xs font-black uppercase px-4 py-1.5 rounded-xl border-2 outline-none cursor-pointer transition-all ${getStatusStyle(activity.status)}`}
+                      >
+                        {Object.values(ActivityStatus).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+                      </select>
                     </div>
                   </div>
-                  
-                  <div className="h-8 w-px bg-slate-100 hidden md:block"></div>
-                  
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter leading-none">Problemática</p>
-                    <p className="text-xs font-bold text-red-500">{activity.problemsIdentified}</p>
-                  </div>
-
-                  <div className="h-8 w-px bg-slate-100 hidden md:block"></div>
-
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter leading-none">Estado</p>
-                    <p className="text-xs font-black text-indigo-600 uppercase">{activity.status}</p>
-                  </div>
+                </div>
+                <div className="pt-2">
+                  <i className={`fa-solid fa-chevron-${isExpanded ? 'up' : 'down'} text-slate-300 text-xl`}></i>
                 </div>
               </div>
 
+              {/* Detalle Expandido (UI coincidente con captura) */}
               {isExpanded && (
-                <div className="px-6 pb-8 pt-4 bg-slate-50/50 border-t border-slate-100 animate-in slide-in-from-top-2 duration-300">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div className="md:col-span-2 space-y-6">
-                      <div className="grid grid-cols-2 gap-4">
-                        <InfoBox label="Contacto Atendido" value={activity.attendeeName} subValue={activity.attendeeRole} />
-                        <InfoBox label="Teléfono Contacto" value={activity.attendeePhone} />
+                <div className="px-10 pb-12 pt-8 bg-slate-50/40 border-t border-slate-100 animate-in slide-in-from-top-2 duration-300">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                    
+                    {/* Columna Principal (Izquierda) */}
+                    <div className="lg:col-span-8 space-y-10">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                          <Label>Contacto Atendido</Label>
+                          <DataBox value={activity.attendeeName} subValue={activity.attendeeRole} />
+                        </div>
+                        <div>
+                          <Label>Teléfono Contacto</Label>
+                          <DataBox value={activity.attendeePhone} />
+                        </div>
                       </div>
                       
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Propuestas y Comentarios</label>
-                        <p className="text-sm bg-white p-4 rounded-2xl border border-slate-200 text-slate-700 leading-relaxed shadow-sm">
-                          {activity.proposals || 'Sin propuestas registradas.'}
-                        </p>
+                      <div>
+                        <Label>Propuestas y Comentarios</Label>
+                        <TextBox value={activity.proposals} />
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Acuerdos Alcanzados</label>
-                        <p className="text-sm bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 text-indigo-900 font-medium leading-relaxed">
-                          {activity.agreements || 'Pendiente de definir acuerdos.'}
-                        </p>
+                      <div>
+                        <Label>Acuerdos Alcanzados</Label>
+                        <TextBox 
+                          value={activity.agreements} 
+                          color="text-indigo-900 font-bold" 
+                          bg="bg-indigo-50/50" 
+                          border="border-indigo-100" 
+                        />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <InfoBox label="Referido a" value={activity.referral || 'N/A'} />
-                        <InfoBox label="Compañeros" value={activity.companions || 'Solo'} />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                          <Label>Referido a</Label>
+                          <DataBox value={activity.referral} />
+                        </div>
+                        <div>
+                          <Label>Compañeros</Label>
+                          <DataBox value={activity.companions} />
+                        </div>
                       </div>
                     </div>
 
-                    <div className="space-y-6">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Observaciones Adicionales</label>
-                        <p className="text-xs bg-white p-4 rounded-2xl border border-slate-200 text-slate-500 italic">
-                          {activity.additionalObservations || 'Sin observaciones extras.'}
-                        </p>
+                    {/* Columna Lateral (Derecha) */}
+                    <div className="lg:col-span-4 space-y-10">
+                      <div>
+                        <Label>Observaciones Adicionales</Label>
+                        <TextBox value={activity.additionalObservations} color="text-slate-500 italic" />
                       </div>
 
-                      {activity.driveLinks && (
-                        <a 
-                          href={activity.driveLinks} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="flex items-center gap-3 p-4 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-100 hover:bg-emerald-100 transition-all group"
-                        >
-                          <i className="fa-brands fa-google-drive text-2xl"></i>
-                          <div>
-                            <p className="text-[10px] font-black uppercase">Recursos Externos</p>
-                            <p className="text-xs font-bold truncate group-hover:underline">Ver Documentos en Drive</p>
-                          </div>
-                        </a>
-                      )}
-
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Firma de Jefatura</label>
-                        {userRole === UserRole.ADMIN ? (
-                          <textarea 
-                            className="w-full bg-white border-2 border-slate-100 rounded-2xl p-4 text-xs outline-none focus:border-indigo-600 transition-all shadow-sm"
-                            placeholder="Agregar comentario administrativo..."
-                            value={activity.adminComments || ''}
-                            onClick={e => e.stopPropagation()}
-                            onChange={e => onUpdateActivity(activity.id, { adminComments: e.target.value })}
-                          />
+                      <div className="space-y-4">
+                        <Label>Recursos Externos</Label>
+                        {activity.driveLinks ? (
+                          <a 
+                            href={activity.driveLinks} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="flex items-center gap-5 p-6 bg-emerald-50 text-emerald-700 rounded-3xl border border-emerald-100 hover:bg-emerald-100 transition-all group shadow-sm"
+                          >
+                            <i className="fa-brands fa-google-drive text-4xl"></i>
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-widest">RECURSOS EXTERNOS</p>
+                              <p className="text-sm font-bold truncate group-hover:underline">Ver Documentos en Drive</p>
+                            </div>
+                          </a>
                         ) : (
-                          <p className="text-xs italic text-indigo-900 bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm">
-                            {activity.adminComments || 'Esperando revisión de supervisor...'}
-                          </p>
+                          <div className="p-6 bg-slate-100 text-slate-400 rounded-3xl border border-slate-200 text-center">
+                            <p className="text-xs font-bold uppercase">Sin Enlaces Adjuntos</p>
+                          </div>
                         )}
                       </div>
+
+                      <div className="space-y-4">
+                        <Label>Firma de Jefatura</Label>
+                        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm min-h-[90px] flex flex-col justify-center">
+                          {userRole === UserRole.ADMIN ? (
+                            <textarea 
+                              className="w-full text-xs font-medium text-slate-600 outline-none border-none resize-none bg-transparent"
+                              placeholder="Escriba aquí la validación administrativa..."
+                              value={activity.adminComments || ''}
+                              onClick={e => e.stopPropagation()}
+                              onChange={e => onUpdateActivity(activity.id, { adminComments: e.target.value })}
+                            />
+                          ) : (
+                            <p className="text-xs italic text-indigo-900 font-medium">
+                              {activity.adminComments || 'Esperando revisión de supervisor...'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
+
                   </div>
                 </div>
               )}
             </div>
           )
         })}
-        {filtered.length === 0 && (
-          <div className="bg-white rounded-[2rem] p-20 text-center border-2 border-dashed border-slate-200">
-            <i className="fa-solid fa-clipboard-question text-4xl text-slate-200 mb-4"></i>
-            <p className="text-slate-400 font-bold uppercase text-sm">No hay acciones registradas para mostrar</p>
-          </div>
-        )}
       </div>
 
+      {/* Modal de Ingreso (Optimizado con todos los campos) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
-          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden animate-in zoom-in-95 duration-300 my-8">
-            <div className="px-10 py-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white rounded-[4rem] shadow-2xl w-full max-w-5xl overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col">
+            <div className="px-14 py-12 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 flex-shrink-0">
               <div>
-                <h3 className="text-2xl font-black text-slate-800 tracking-tight">Nueva Acción Territorial</h3>
-                <p className="text-sm text-slate-400 font-medium uppercase tracking-widest text-[10px]">Registro de labor institucional</p>
+                <h3 className="text-3xl font-black text-slate-800 tracking-tight">Nueva Gestión de Campo</h3>
+                <p className="text-xs text-slate-400 font-black uppercase tracking-[0.3em] mt-2">Sincronización de bitácora institucional</p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="w-12 h-12 flex items-center justify-center bg-white rounded-full text-slate-400 hover:text-slate-600 shadow-sm transition-colors border border-slate-100"><i className="fa-solid fa-xmark text-xl"></i></button>
+              <button onClick={() => setIsModalOpen(false)} className="w-16 h-16 flex items-center justify-center bg-white rounded-full text-slate-300 hover:text-red-500 shadow-sm border border-slate-100 transition-all active:scale-90">
+                <i className="fa-solid fa-xmark text-2xl"></i>
+              </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-10 space-y-10">
-              {/* Sección 1: Información Base */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 border-l-4 border-indigo-600 pl-4">
-                  <span className="text-sm font-black text-indigo-600 uppercase tracking-widest">1. Datos Generales</span>
+            <form onSubmit={handleSubmit} className="p-14 space-y-12 overflow-y-auto no-scrollbar flex-1">
+              {/* Sección: Datos de Identificación */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                  <Label>Fecha</Label>
+                  <input required type="date" className="custom-input" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <FormField label="Fecha de la Visita">
-                    <input required type="date" className="input-field" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
-                  </FormField>
-                  <FormField label="Hora (Columna 3)">
-                    <input required type="time" className="input-field" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} />
-                  </FormField>
-                  <FormField label="Comunidad / Sector">
-                    <input required className="input-field" value={formData.community} onChange={e => setFormData({...formData, community: e.target.value})} placeholder="Ej: Renacimiento 86" />
-                  </FormField>
-                  <div className="md:col-span-3">
-                    <FormField label="Objetivo de la Visita">
-                      <input required className="input-field font-bold text-indigo-700" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} placeholder="Ej: Programar reparación de luminarias" />
-                    </FormField>
-                  </div>
+                <div>
+                  <Label>Hora (Columna 3)</Label>
+                  <input required type="time" className="custom-input" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} />
+                </div>
+                <div>
+                  <Label>Estado Inicial (Momento 1)</Label>
+                  <select required className="custom-input font-black text-indigo-600" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
+                    {Object.values(ActivityStatus).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+                  </select>
                 </div>
               </div>
 
-              {/* Sección 2: Contacto */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 border-l-4 border-emerald-500 pl-4">
-                  <span className="text-sm font-black text-emerald-600 uppercase tracking-widest">2. Contacto Comunitario</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <Label>Comunidad / Colonia / Sector</Label>
+                  <input required className="custom-input" value={formData.community} onChange={e => setFormData({...formData, community: e.target.value})} placeholder="Ej: Lirios del Norte 1era Etapa" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <FormField label="Nombre Atiende">
-                    <input required className="input-field" value={formData.attendeeName} onChange={e => setFormData({...formData, attendeeName: e.target.value})} placeholder="Nombre completo" />
-                  </FormField>
-                  <FormField label="Cargo / Rol">
-                    <input className="input-field" value={formData.attendeeRole} onChange={e => setFormData({...formData, attendeeRole: e.target.value})} placeholder="Ej: Síndico de JD" />
-                  </FormField>
-                  <FormField label="Teléfono">
-                    <input className="input-field" value={formData.attendeePhone} onChange={e => setFormData({...formData, attendeePhone: e.target.value})} placeholder="0000-0000" />
-                  </FormField>
+                <div>
+                  <Label>Tipo de Problemática</Label>
+                  <select required className="custom-input" value={formData.problemsIdentified} onChange={e => setFormData({...formData, problemsIdentified: e.target.value as any})}>
+                    {Object.values(ProblemType).map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
                 </div>
               </div>
 
-              {/* Sección 3: Análisis Técnico */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 border-l-4 border-amber-500 pl-4">
-                  <span className="text-sm font-black text-amber-600 uppercase tracking-widest">3. Hallazgos y Acuerdos</span>
+              <div>
+                <Label>Objetivo Principal de la Visita</Label>
+                <input required className="custom-input font-bold text-indigo-800" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} placeholder="Ej: Visita de seguimiento para reparación de drenajes" />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                  <Label>Nombre Persona Atendida</Label>
+                  <input required className="custom-input" value={formData.attendeeName} onChange={e => setFormData({...formData, attendeeName: e.target.value})} placeholder="Ej: Juan Perez" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <FormField label="Problemáticas Identificadas">
-                    <select required className="input-field font-bold" value={formData.problemsIdentified} onChange={e => setFormData({...formData, problemsIdentified: e.target.value as any})}>
-                      {Object.values(ProblemType).map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </FormField>
-                  <FormField label="Propuestas / Comentarios">
-                    <textarea rows={3} className="input-field resize-none" value={formData.proposals} onChange={e => setFormData({...formData, proposals: e.target.value})} placeholder="¿Qué se propuso en la visita?" />
-                  </FormField>
-                  <FormField label="Acuerdos Específicos">
-                    <textarea rows={3} className="input-field resize-none bg-indigo-50/30 border-indigo-100 font-medium" value={formData.agreements} onChange={e => setFormData({...formData, agreements: e.target.value})} placeholder="¿A qué compromisos se llegó?" />
-                  </FormField>
-                  <FormField label="Observaciones Adicionales">
-                    <textarea rows={3} className="input-field resize-none" value={formData.additionalObservations} onChange={e => setFormData({...formData, additionalObservations: e.target.value})} />
-                  </FormField>
+                <div>
+                  <Label>Cargo / Rol Comunitario</Label>
+                  <input className="custom-input" value={formData.attendeeRole} onChange={e => setFormData({...formData, attendeeRole: e.target.value})} placeholder="Ej: Presidente de ADESCO" />
+                </div>
+                <div>
+                  <Label>Contacto Telefónico</Label>
+                  <input className="custom-input" value={formData.attendeePhone} onChange={e => setFormData({...formData, attendeePhone: e.target.value})} placeholder="7777-2727" />
                 </div>
               </div>
 
-              {/* Sección 4: Otros */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 border-l-4 border-slate-800 pl-4">
-                  <span className="text-sm font-black text-slate-800 uppercase tracking-widest">4. Otros y Seguimiento</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <Label>Propuestas y Comentarios</Label>
+                  <textarea rows={4} className="custom-input resize-none" value={formData.proposals} onChange={e => setFormData({...formData, proposals: e.target.value})} />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField label="Drive Link (Columna 13)">
-                    <input className="input-field italic" value={formData.driveLinks} onChange={e => setFormData({...formData, driveLinks: e.target.value})} placeholder="URL de Google Drive" />
-                  </FormField>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField label="Referido a">
-                      <input className="input-field" value={formData.referral} onChange={e => setFormData({...formData, referral: e.target.value})} placeholder="Unidad / Depto" />
-                    </FormField>
-                    <FormField label="Acompañantes">
-                      <input className="input-field" value={formData.companions} onChange={e => setFormData({...formData, companions: e.target.value})} placeholder="Nombres" />
-                    </FormField>
-                  </div>
+                <div>
+                  <Label>Acuerdos Alcanzados</Label>
+                  <textarea rows={4} className="custom-input resize-none font-bold text-indigo-900 bg-indigo-50/20" value={formData.agreements} onChange={e => setFormData({...formData, agreements: e.target.value})} />
                 </div>
               </div>
 
-              <div className="flex flex-col md:flex-row justify-center md:justify-end gap-4 pt-10 border-t border-slate-100">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-4 text-sm font-black text-slate-400 hover:text-slate-800 transition-colors uppercase tracking-widest">Cerrar</button>
-                <button type="submit" className="bg-indigo-600 text-white px-16 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-indigo-200 active:scale-95 transition-all">Finalizar Registro</button>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                  <Label>Referido a (Unidad)</Label>
+                  <input className="custom-input" value={formData.referral} onChange={e => setFormData({...formData, referral: e.target.value})} placeholder="Ej: Desarrollo Urbano" />
+                </div>
+                <div>
+                  <Label>Compañeros de Equipo</Label>
+                  <input className="custom-input" value={formData.companions} onChange={e => setFormData({...formData, companions: e.target.value})} placeholder="Ej: Janira Alvarado, Dolores Hernandez" />
+                </div>
+                <div>
+                  <Label>Link de Evidencia (Drive)</Label>
+                  <input className="custom-input italic text-emerald-600" value={formData.driveLinks} onChange={e => setFormData({...formData, driveLinks: e.target.value})} placeholder="https://drive.google.com/..." />
+                </div>
+              </div>
+
+              <div>
+                <Label>Observaciones Adicionales</Label>
+                <textarea rows={2} className="custom-input resize-none italic" value={formData.additionalObservations} onChange={e => setFormData({...formData, additionalObservations: e.target.value})} placeholder="Cualquier detalle relevante adicional..." />
+              </div>
+
+              <div className="flex flex-col md:flex-row justify-center md:justify-end gap-6 pt-10 border-t border-slate-100 flex-shrink-0">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-12 py-5 text-sm font-black text-slate-400 hover:text-slate-800 transition-colors uppercase tracking-[0.2em]">Cancelar</button>
+                <button type="submit" className="bg-indigo-600 text-white px-24 py-5 rounded-[2.5rem] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-indigo-200 active:scale-95 transition-all">Guardar Actividad</button>
               </div>
             </form>
           </div>
@@ -353,21 +388,21 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
       )}
       
       <style>{`
-        .input-field {
+        .custom-input {
           width: 100%;
           background: #f8fafc;
           border: 2px solid #f1f5f9;
-          border-radius: 1rem;
-          padding: 0.85rem 1.25rem;
-          font-size: 0.875rem;
+          border-radius: 1.5rem;
+          padding: 1.25rem 1.75rem;
+          font-size: 0.95rem;
           color: #1e293b;
           outline: none;
-          transition: all 0.2s;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .input-field:focus {
+        .custom-input:focus {
           border-color: #4f46e5;
           background: white;
-          box-shadow: 0 4px 12px -2px rgba(79, 70, 229, 0.08);
+          box-shadow: 0 10px 30px -5px rgba(79, 70, 229, 0.12);
         }
       `}</style>
     </div>
