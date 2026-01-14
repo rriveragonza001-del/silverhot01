@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Activity, ActivityType, ActivityStatus, Location } from '../types';
+import { Activity, ActivityType, ActivityStatus, Location, ProblemType } from '../types';
 
 interface ProgramModuleProps {
   onProgramLoaded: (activities: Activity[]) => void;
@@ -26,22 +26,40 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({ onProgramLoaded, currentL
         {
           id: `p-${Date.now()}-1`,
           promoterId: 'p1',
-          type: ActivityType.COMMUNITY_VISIT,
-          title: 'Carga Masiva: Visita Sector Norte',
-          description: 'Programación automática desde Hoja de Cálculo',
           date: today.toISOString().split('T')[0],
-          startTime: '08:00',
+          time: '08:00',
+          community: 'Sector Norte',
+          objective: 'Carga Masiva: Visita Sector Norte',
+          attendeeName: 'Pendiente',
+          attendeeRole: 'Líder Comunitario',
+          attendeePhone: '',
+          proposals: '',
+          problemsIdentified: ProblemType.OTRAS,
+          agreements: '',
+          additionalObservations: 'Programación automática desde Hoja de Cálculo',
+          driveLinks: '',
+          referral: '',
+          companions: '',
           status: ActivityStatus.PENDING,
           location: currentLocation
         },
         {
           id: `p-${Date.now()}-2`,
           promoterId: 'p1',
-          type: ActivityType.COMMUNITY_MEETING,
-          title: 'Carga Masiva: Reunión Comité de Agua',
-          description: 'Programación automática desde Hoja de Cálculo',
           date: new Date(today.getTime() + 86400000).toISOString().split('T')[0],
-          startTime: '10:00',
+          time: '10:00',
+          community: 'Comité de Agua',
+          objective: 'Carga Masiva: Reunión Comité de Agua',
+          attendeeName: 'Pendiente',
+          attendeeRole: 'Representante Comité',
+          attendeePhone: '',
+          proposals: '',
+          problemsIdentified: ProblemType.OTRAS,
+          agreements: '',
+          additionalObservations: 'Programación automática desde Hoja de Cálculo',
+          driveLinks: '',
+          referral: '',
+          companions: '',
           status: ActivityStatus.PENDING,
           location: currentLocation
         }

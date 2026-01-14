@@ -1,5 +1,5 @@
 
-import { Promoter, Activity, ActivityStatus, ActivityType, UserRole } from '../types';
+import { Promoter, Activity, ActivityStatus, ProblemType, UserRole } from '../types';
 
 export const MOCK_PROMOTERS: Promoter[] = [
   {
@@ -56,21 +56,22 @@ export const MOCK_ACTIVITIES: Activity[] = [
   {
     id: 'a1',
     promoterId: 'p1',
-    type: ActivityType.COMMUNITY_VISIT,
-    title: 'Visita Sector 4 - Diagnóstico',
-    description: 'Relevamiento de necesidades básicas en el sector sur.',
     date: new Date().toISOString().split('T')[0],
-    startTime: '09:00',
+    time: '09:00',
+    community: 'Sector Sur 4',
+    objective: 'Visita Sector 4 - Diagnóstico',
+    attendeeName: 'Maria Lopez',
+    attendeeRole: 'Presidenta Junta Vecinal',
+    attendeePhone: '555-0102',
+    proposals: 'Relevamiento de necesidades básicas en el sector sur.',
+    problemsIdentified: ProblemType.LUMINARIAS,
+    agreements: 'Se acordó revisión técnica.',
+    additionalObservations: 'Se detectó falta de alumbrado. Vecinos conformes.',
+    driveLinks: '',
+    referral: '',
+    companions: '',
     status: ActivityStatus.COMPLETED,
     location: { lat: 19.4326, lng: -99.1332 },
-    observations: 'Se detectó falta de alumbrado. Vecinos conformes.',
-    communityContact: {
-      name: 'Maria Lopez',
-      phone: '555-0102',
-      hasWhatsApp: true,
-      role: 'Presidenta Junta Vecinal',
-      community: 'Sector Sur 4'
-    },
     verificationPhoto: 'https://picsum.photos/seed/work1/400/300'
   }
 ];

@@ -19,6 +19,17 @@ export enum ActivityType {
   OTHER = 'Otra'
 }
 
+export enum ProblemType {
+  LUMINARIAS = 'FALLAS EN LUMINARIAS PUBLICAS',
+  CALLES = 'CALLES EN MAL ESTADO',
+  BASURA = 'PROBLEMA DE BASURA',
+  VECINALES = 'PROBLEMAS VECINALES',
+  ORGANIZACION = 'PROBLEMAS DE ORGANIZACION COMUNITARIA',
+  ARBOLES = 'ARBOLES EN RIESGO',
+  ZONA_VERDE = 'ZONA VERDE SUCIA',
+  OTRAS = 'OTRAS'
+}
+
 export enum UserRole {
   ADMIN = 'ADMIN',
   FIELD_PROMOTER = 'FIELD_PROMOTER'
@@ -37,12 +48,27 @@ export interface Location {
   address?: string;
 }
 
-export interface CommunityContact {
-  name: string;
-  phone: string;
-  hasWhatsApp: boolean;
-  role: string;
+export interface Activity {
+  id: string;
+  promoterId: string;
+  date: string;
+  time: string; // Columna 3
   community: string;
+  objective: string;
+  attendeeName: string;
+  attendeeRole: string;
+  attendeePhone: string;
+  proposals: string;
+  problemsIdentified: ProblemType | string;
+  agreements: string;
+  additionalObservations: string;
+  driveLinks: string; // Columna 13
+  referral: string;
+  companions: string;
+  status: ActivityStatus;
+  location: Location;
+  verificationPhoto?: string;
+  adminComments?: string;
 }
 
 export interface Promoter {
@@ -52,7 +78,7 @@ export interface Promoter {
   email: string;
   phone: string;
   position: string;
-  password?: string; // New field for security
+  password?: string;
   status: 'active' | 'inactive' | 'away';
   isOnline: boolean;
   lastLocation: Location;
@@ -60,24 +86,6 @@ export interface Promoter {
   lastConnection: string;
   zone?: string;
   role: UserRole;
-}
-
-export interface Activity {
-  id: string;
-  promoterId: string;
-  type: ActivityType;
-  title: string;
-  description: string;
-  date: string;
-  startTime: string;
-  endTime?: string;
-  status: ActivityStatus;
-  location: Location;
-  observations?: string;
-  incidents?: string;
-  adminComments?: string;
-  verificationPhoto?: string;
-  communityContact?: CommunityContact;
 }
 
 export interface Notification {
