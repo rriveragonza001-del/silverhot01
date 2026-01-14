@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Activity, ActivityStatus, ProblemType, Promoter, UserRole } from '../types';
+import { Activity, ActivityStatus, ActivityType, ProblemType, Promoter, UserRole } from '../types';
 
 // Componentes de interfaz para replicar la captura de pantalla
 // Se marcó children como opcional para corregir errores de compilación de TypeScript en el entorno de ejecución
@@ -46,6 +46,8 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
     attendeePhone: '',
     proposals: '',
     problemsIdentified: ProblemType.OTRAS,
+    // Added initial type state
+    type: ActivityType.COMMUNITY_VISIT,
     agreements: '',
     additionalObservations: '',
     driveLinks: '',
@@ -135,6 +137,10 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                     </span>
                     <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-4 py-1.5 rounded-full border border-slate-100">
                       {activity.date}
+                    </span>
+                    {/* Display Activity Type badge */}
+                    <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-4 py-1.5 rounded-full border border-emerald-100">
+                      {activity.type}
                     </span>
                   </div>
                   
@@ -325,6 +331,17 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                     {Object.values(ProblemType).map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
+              </div>
+
+              {/* Added row for Activity Type selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <Label>Tipo de Actividad</Label>
+                  <select required className="custom-input font-bold text-indigo-600" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})}>
+                    {Object.values(ActivityType).map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="hidden md:block"></div>
               </div>
 
               <div>

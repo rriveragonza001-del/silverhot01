@@ -53,7 +53,7 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
 
-  // Persistencia Blindada: Cualquier cambio en actividades, promotores o avisos se guarda al instante.
+  // Persistencia Blindada
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(promoters));
     localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(activities));
@@ -85,7 +85,7 @@ const App: React.FC = () => {
   const handleAddActivity = (activity: Activity) => {
     const activityWithPromoter = {
       ...activity,
-      promoterId: currentPromoterId // Asignación automática segura
+      promoterId: currentPromoterId
     };
     setActivities(prev => [activityWithPromoter, ...prev]);
   };
@@ -136,14 +136,12 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
-      {/* Indicador Global de Guardado */}
       {showSaveSuccess && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] bg-indigo-600 text-white px-6 py-2 rounded-full text-[11px] font-black shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in duration-300">
           <i className="fa-solid fa-cloud-check"></i> DATOS SINCRONIZADOS
         </div>
       )}
 
-      {/* Menú Lateral Escritorio */}
       {!isMobile && (
         <aside className="bg-slate-900 text-slate-300 w-72 flex-shrink-0 flex flex-col border-r border-slate-800">
           <div className="p-8 flex items-center gap-4">
@@ -186,7 +184,6 @@ const App: React.FC = () => {
         </aside>
       )}
 
-      {/* Contenedor Principal */}
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <header className="safe-pt bg-white/80 backdrop-blur-md border-b border-slate-100 px-8 py-5 flex justify-between items-center z-40 sticky top-0">
           <div className="flex items-center gap-4">
@@ -232,12 +229,17 @@ const App: React.FC = () => {
             )}
             {activeView === 'reports' && <PerformanceReport activities={activities} promoters={promoters} />}
             {activeView === 'admin-custom-reports' && <AdminReportGenerator activities={activities} promoters={promoters} />}
-            {activeView === 'program' && <ProgramModule onProgramLoaded={(newActs) => setActivities(prev => [...newActs, ...prev])} currentLocation={currentPromoter.lastLocation} />}
+            {activeView === 'program' && (
+              <ProgramModule 
+                activities={filteredActivities} 
+                onProgramLoaded={(newActs) => setActivities(prev => [...newActs, ...prev])} 
+                currentLocation={currentPromoter.lastLocation} 
+              />
+            )}
             {activeView === 'final-report' && <ReportingModule activities={filteredActivities} promoter={currentPromoter} />}
           </div>
         </div>
 
-        {/* Barra de Navegación Móvil */}
         {isMobile && (
           <nav className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 safe-pb z-50 flex justify-around items-center px-4 py-2 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)]">
             {navItems.slice(0, 5).map((item) => (

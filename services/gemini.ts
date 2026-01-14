@@ -6,17 +6,24 @@ export const generatePerformanceSummary = async (activities: Activity[], promote
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
 
+  if (activities.length === 0) return "No hay actividades registradas para analizar.";
+
   const prompt = `
     Analiza las siguientes actividades de promotores de campo y genera un resumen ejecutivo profesional en español.
     
     Promotores: ${JSON.stringify(promoters.map(p => ({ id: p.id, name: p.name })))}
-    Actividades: ${JSON.stringify(activities)}
+    Actividades: ${JSON.stringify(activities.map(a => ({
+      obj: a.objective,
+      com: a.community,
+      type: a.type, // Added type for better context
+      prob: a.problemsIdentified,
+      status: a.status
+    })))}
     
     El resumen debe incluir:
     1. Un análisis general de la ejecución de labores.
     2. Identificación de áreas de oportunidad.
-    3. Recomendaciones para mejorar la eficiencia del equipo.
-    4. Un breve veredicto sobre el estado actual de las operaciones.
+    3. Recomendaciones para mejorar la eficiencia.
     
     Responde en formato Markdown limpio.
   `;
@@ -35,23 +42,43 @@ export const generatePerformanceSummary = async (activities: Activity[], promote
 
 export const generateFinalReport = async (activities: Activity[], period: ReportPeriod | string, promoterName?: string, filterInfo?: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = 'gemini-3-pro-preview';
+  // Usamos flash-preview para evitar timeouts en informes detallados
+  const model = 'gemini-3-flash-preview';
+
+  if (activities.length === 0) return "Error: No se encontraron actividades en el rango seleccionado para generar el informe.";
 
   const prompt = `
-    Genera un INFORME DE ACTIVIDADES DETALLADO.
-    Periodo/Filtro: ${period}.
-    ${promoterName ? `Gestor: ${promoterName}.` : ''}
-    ${filterInfo ? `Contexto del filtro: ${filterInfo}.` : ''}
-    Datos de actividades: ${JSON.stringify(activities)}
+    Genera un INFORME DE ACTIVIDADES DETALLADO Y PROFESIONAL.
+    Periodo: ${period}.
+    ${promoterName ? `Gestor responsable: ${promoterName}.` : ''}
+    ${filterInfo ? `Contexto adicional: ${filterInfo}.` : ''}
     
-    El informe debe estructurarse así:
-    1. Portada Institucional.
-    2. Resumen Ejecutivo de Labores.
-    3. Desglose detallado por tipo de acción y cumplimiento de objetivos.
-    4. Análisis territorial y de impacto (Zonas impactadas).
-    5. Conclusiones estratégicas y firmas de responsabilidad.
+    Datos de actividades a procesar: ${JSON.stringify(activities.map(a => ({
+      fecha: a.date,
+      hora: a.time,
+      comunidad: a.community,
+      tipo: a.type, // Added type for better context
+      objetivo: a.objective,
+      atendio: a.attendeeName,
+      problematica: a.problemsIdentified,
+      acuerdos: a.agreements,
+      estado: a.status
+    })))}
     
-    Usa un tono formal, administrativo y profesional. Responde en Markdown.
+    ESTRUCTURA DEL INFORME (Markdown):
+    # INFORME OFICIAL DE GESTIÓN TERRITORIAL
+    ## 1. RESUMEN EJECUTIVO
+    (Breve descripción de los logros del periodo)
+    
+    ## 2. DETALLE DE INTERVENCIONES
+    (Listado organizado de las visitas y resultados principales)
+    
+    ## 3. ANÁLISIS DE PROBLEMÁTICAS IDENTIFICADAS
+    (Frecuencia de problemas como luminarias, calles, etc.)
+    
+    ## 4. CONCLUSIONES Y RECOMENDACIONES TÉCNICAS
+    
+    Usa un tono formal y administrativo.
   `;
 
   try {
@@ -59,9 +86,9 @@ export const generateFinalReport = async (activities: Activity[], period: Report
       model,
       contents: prompt,
     });
-    return response.text || "Informe no generado.";
+    return response.text || "Informe no generado por falta de respuesta del modelo.";
   } catch (error) {
     console.error("Gemini Report Error:", error);
-    return "Error al procesar el informe final.";
+    throw new Error("Fallo en la conexión con el motor de informes. Por favor, reintente.");
   }
 };

@@ -1,5 +1,5 @@
 
-import { Promoter, Activity, ActivityStatus, ProblemType, UserRole } from '../types';
+import { Promoter, Activity, ActivityStatus, ProblemType, UserRole, ActivityType } from '../types';
 
 export const MOCK_PROMOTERS: Promoter[] = [
   {
@@ -72,6 +72,8 @@ export const MOCK_ACTIVITIES: Activity[] = [
     companions: '',
     status: ActivityStatus.COMPLETED,
     location: { lat: 19.4326, lng: -99.1332 },
+    // Added type property to match Activity interface
+    type: ActivityType.COMMUNITY_VISIT,
     verificationPhoto: 'https://picsum.photos/seed/work1/400/300'
   }
 ];

@@ -67,6 +67,8 @@ export interface Activity {
   companions: string;
   status: ActivityStatus;
   location: Location;
+  // Added missing type property to match ActivityType enum
+  type: ActivityType;
   verificationPhoto?: string;
   adminComments?: string;
 }
