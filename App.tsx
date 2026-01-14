@@ -85,7 +85,11 @@ const App: React.FC = () => {
   };
 
   const handleAddActivity = (activity: Activity) => {
-    setActivities(prev => [activity, ...prev]);
+    const activityWithPromoter = {
+      ...activity,
+      promoterId: activity.promoterId || currentPromoterId
+    };
+    setActivities(prev => [activityWithPromoter, ...prev]);
   };
 
   const handleProgramLoaded = (newActs: Activity[]) => {
@@ -202,13 +206,13 @@ const App: React.FC = () => {
           
           {userRole === UserRole.ADMIN && activeView === 'program' && (
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtro Global:</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ver Programación:</span>
               <select 
                 value={adminViewPromoterId} 
                 onChange={e => setAdminViewPromoterId(e.target.value)}
                 className="bg-slate-100 border-none rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="ALL">TODOS LOS GESTORES</option>
+                <option value="ALL">VISTA GRUPAL</option>
                 {promoters.filter(p => p.role === UserRole.FIELD_PROMOTER).map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -257,7 +261,9 @@ const App: React.FC = () => {
                 promoterId={userRole === UserRole.ADMIN ? adminViewPromoterId : currentPromoterId}
                 activities={filteredActivities} 
                 onProgramLoaded={handleProgramLoaded} 
+                onAddActivity={handleAddActivity}
                 currentLocation={currentPromoter.lastLocation} 
+                userRole={userRole}
               />
             )}
             {activeView === 'final-report' && <ReportingModule activities={filteredActivities} promoter={currentPromoter} />}
