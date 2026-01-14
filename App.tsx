@@ -21,37 +21,49 @@ const App: React.FC = () => {
   const [currentPromoterId, setCurrentPromoterId] = useState<string>('p1');
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [showSaveIndicator, setShowSaveIndicator] = useState(false);
   
-  // Persistence logic: Load initial data from LocalStorage or Fallback to Mocks
+  // Persistence Initialization
   const [promoters, setPromoters] = useState<Promoter[]>(() => {
-    const saved = localStorage.getItem('pf_promoters');
-    return saved ? JSON.parse(saved) : MOCK_PROMOTERS;
+    try {
+      const saved = localStorage.getItem('pf_promoters_v2');
+      return saved ? JSON.parse(saved) : MOCK_PROMOTERS;
+    } catch (e) {
+      return MOCK_PROMOTERS;
+    }
   });
   
   const [activities, setActivities] = useState<Activity[]>(() => {
-    const saved = localStorage.getItem('pf_activities');
-    return saved ? JSON.parse(saved) : MOCK_ACTIVITIES;
+    try {
+      const saved = localStorage.getItem('pf_activities_v2');
+      return saved ? JSON.parse(saved) : MOCK_ACTIVITIES;
+    } catch (e) {
+      return MOCK_ACTIVITIES;
+    }
   });
   
   const [notifications, setNotifications] = useState<Notification[]>(() => {
-    const saved = localStorage.getItem('pf_notifications');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('pf_notifications_v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
   });
 
   const [isNewActivityModalOpen, setIsNewActivityModalOpen] = useState(false);
 
-  // Sync data to LocalStorage whenever state changes
+  // Robust Persistence Effect
   useEffect(() => {
-    localStorage.setItem('pf_promoters', JSON.stringify(promoters));
-  }, [promoters]);
-
-  useEffect(() => {
-    localStorage.setItem('pf_activities', JSON.stringify(activities));
-  }, [activities]);
-
-  useEffect(() => {
-    localStorage.setItem('pf_notifications', JSON.stringify(notifications));
-  }, [notifications]);
+    localStorage.setItem('pf_promoters_v2', JSON.stringify(promoters));
+    localStorage.setItem('pf_activities_v2', JSON.stringify(activities));
+    localStorage.setItem('pf_notifications_v2', JSON.stringify(notifications));
+    
+    // Trigger save indicator
+    setShowSaveIndicator(true);
+    const timer = setTimeout(() => setShowSaveIndicator(false), 2000);
+    return () => clearTimeout(timer);
+  }, [promoters, activities, notifications]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -62,7 +74,7 @@ const App: React.FC = () => {
   const handleAddUser = (user: Promoter) => setPromoters(prev => [user, ...prev]);
   const handleUpdateUser = (id: string, updates: Partial<Promoter>) => setPromoters(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
   const handleDeleteUser = (id: string) => {
-    if(window.confirm('¿Estás seguro de eliminar a este usuario?')) {
+    if(window.confirm('¿Estás seguro de eliminar a este usuario de forma permanente?')) {
       setPromoters(prev => prev.filter(u => u.id !== id));
     }
   };
@@ -124,7 +136,6 @@ const App: React.FC = () => {
     setActivities(prev => [activity, ...prev]);
     sendAdminNotification('Nueva Actividad', `${currentPromoter.name} registró una nueva labor: ${activity.title}`, 'NEW_ACTION');
     setIsNewActivityModalOpen(false);
-    // Reset form
     setNewActivity({
       type: ActivityType.COMMUNITY_VISIT,
       status: ActivityStatus.IN_PROGRESS,
@@ -138,12 +149,7 @@ const App: React.FC = () => {
     setUserRole(role);
     setCurrentPromoterId(userId);
     setIsAuthenticated(true);
-    
     setPromoters(prev => prev.map(p => p.id === userId ? { ...p, isOnline: true, lastConnection: new Date().toISOString() } : p));
-    
-    if (role === UserRole.FIELD_PROMOTER) {
-      sendAdminNotification('Sesión Iniciada', `El gestor ha ingresado al sistema. GPS Activo.`, 'USER_LOGIN', userId);
-    }
   };
 
   const handleLogout = () => {
@@ -172,6 +178,12 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
+      {showSaveIndicator && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-4 py-2 rounded-full text-[10px] font-bold z-[200] flex items-center gap-2 shadow-2xl animate-in fade-in zoom-in duration-300">
+          <i className="fa-solid fa-cloud-check text-emerald-400"></i> CAMBIOS GUARDADOS LOCALMENTE
+        </div>
+      )}
+
       {!isMobile && (
         <aside className="bg-slate-900 text-slate-300 w-64 flex-shrink-0 flex flex-col border-r border-slate-800">
           <div className="p-6 flex items-center gap-3">
@@ -201,10 +213,10 @@ const App: React.FC = () => {
               <i className="fa-solid fa-right-from-bracket"></i> Salir
             </button>
             <div className="mt-4 p-3 bg-slate-800 rounded-xl flex items-center gap-3">
-              <img src={currentPromoter.photo} className="w-8 h-8 rounded-full border border-slate-700" alt="me" />
+              <img src={currentPromoter.photo} className="w-8 h-8 rounded-full border border-slate-700 object-cover" alt="me" />
               <div className="overflow-hidden">
                 <p className="text-[10px] font-black text-white truncate">{currentPromoter.name}</p>
-                <p className="text-[8px] text-slate-500 uppercase font-bold">{userRole}</p>
+                <p className="text-[8px] text-slate-500 uppercase font-bold">{userRole === UserRole.ADMIN ? 'Administrador' : 'Gestor'}</p>
               </div>
             </div>
           </div>
@@ -245,7 +257,7 @@ const App: React.FC = () => {
               <div className="space-y-6">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <StatCard icon="fa-users" color="text-indigo-600" bg="bg-indigo-50" label="Equipo" value={promoters.length.toString()} />
-                  <StatCard icon="fa-satellite-dish" color="text-emerald-600" bg="bg-emerald-50" label="GPS" value="FIXED" />
+                  <StatCard icon="fa-satellite-dish" color="text-emerald-600" bg="bg-emerald-50" label="GPS" value="CONECTADO" />
                   <StatCard icon="fa-clipboard-check" color="text-blue-600" bg="bg-blue-50" label="Actividades" value={activities.length.toString()} />
                   <StatCard icon="fa-triangle-exclamation" color="text-red-600" bg="bg-red-50" label="Alertas" value={notifications.filter(n => n.type === 'ADMIN_WARNING').length.toString()} />
                 </div>
@@ -259,7 +271,7 @@ const App: React.FC = () => {
             {activeView === 'activities' && <ActivityLog activities={filteredActivities} promoters={promoters} userRole={userRole} onUpdateActivity={handleUpdateActivity} />}
             {activeView === 'reports' && <PerformanceReport activities={activities} promoters={promoters} />}
             {activeView === 'admin-custom-reports' && <AdminReportGenerator activities={activities} promoters={promoters} />}
-            {activeView === 'program' && <ProgramModule onProgramLoaded={(newActs) => setActivities([...newActs, ...activities])} currentLocation={currentPromoter.lastLocation} />}
+            {activeView === 'program' && <ProgramModule onProgramLoaded={(newActs) => setActivities(prev => [...newActs, ...prev])} currentLocation={currentPromoter.lastLocation} />}
             {activeView === 'final-report' && <ReportingModule activities={filteredActivities} promoter={currentPromoter} />}
           </div>
         </div>
