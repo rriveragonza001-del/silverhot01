@@ -57,7 +57,6 @@ const App: React.FC = () => {
   
   const [adminViewPromoterId, setAdminViewPromoterId] = useState<string>('ALL');
 
-  // Persistencia de datos mejorada
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(promoters));
     localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(activities));
@@ -186,21 +185,18 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
-      {/* Persistencia Indicator */}
       {showSaveSuccess && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] bg-indigo-600 text-white px-6 py-2 rounded-full text-[11px] font-black shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in duration-300">
           <i className="fa-solid fa-cloud-check"></i> DATOS SINCRONIZADOS
         </div>
       )}
 
-      {/* Sidebar for Desktop */}
       {!isMobile && (
         <aside className="bg-slate-900 text-slate-300 w-72 flex-shrink-0 flex flex-col border-r border-slate-800">
           <SidebarContent />
         </aside>
       )}
 
-      {/* Mobile Drawer */}
       {isMobile && isMobileMenuOpen && (
         <div className="fixed inset-0 z-[500] flex">
           <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
@@ -214,7 +210,6 @@ const App: React.FC = () => {
       )}
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
-        {/* Header Adaptativo */}
         <header className="safe-pt bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-5 flex justify-between items-center z-40 sticky top-0">
           <div className="flex items-center gap-4">
             {isMobile && (
@@ -228,15 +223,15 @@ const App: React.FC = () => {
             </div>
           </div>
           
-          {userRole === UserRole.ADMIN && activeView === 'program' && !isMobile && (
+          {userRole === UserRole.ADMIN && activeView === 'program' && (
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Agenda de:</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vista de Agenda:</span>
               <select 
                 value={adminViewPromoterId} 
                 onChange={e => setAdminViewPromoterId(e.target.value)}
                 className="bg-slate-100 border-none rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="ALL">EQUIPO COMPLETO</option>
+                <option value="ALL">TODO EL EQUIPO</option>
                 {promoters.filter(p => p.role === UserRole.FIELD_PROMOTER).map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -284,6 +279,7 @@ const App: React.FC = () => {
               <ProgramModule 
                 promoterId={userRole === UserRole.ADMIN ? adminViewPromoterId : currentPromoterId}
                 activities={filteredActivities} 
+                promoters={promoters}
                 onProgramLoaded={(acts) => setActivities(prev => [...acts, ...prev])} 
                 onAddActivity={handleAddActivity}
                 currentLocation={currentPromoter.lastLocation} 
@@ -294,7 +290,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Bottom Nav Fijo para Mobile (Opciones más rápidas) */}
         {isMobile && (
           <nav className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 safe-pb z-50 flex justify-around items-center px-2 py-2 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)]">
             {[
