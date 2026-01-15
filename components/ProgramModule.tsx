@@ -66,7 +66,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   };
 
   const handleSyncCalendar = () => {
-    alert("Sincronizando su Agenda Institucional con Google Calendar movil...");
+    alert("Sincronizando Agenda Institucional con Google Calendar movil... Recibirá recordatorios push.");
   };
 
   const handleExportProgram = (type: 'diario' | 'semanal' | 'mensual') => {

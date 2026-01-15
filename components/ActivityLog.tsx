@@ -115,7 +115,7 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-slate-200 gap-6">
         <div>
           <h2 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">Registro de Actividades</h2>
@@ -180,13 +180,13 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                     </div>
 
                     <div>
-                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-1">Estado Actual</p>
+                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-1">Estado</p>
                       <select 
                         value={activity.status}
                         disabled={isCompleted}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => handleStatusChange(activity.id, e.target.value as ActivityStatus)}
-                        className={`text-[10px] font-black uppercase px-4 py-1.5 rounded-xl border-2 outline-none cursor-pointer transition-all ${getStatusStyle(activity.status)} ${isCompleted ? 'opacity-70' : ''}`}
+                        className={`text-[10px] font-black uppercase px-4 py-1.5 rounded-xl border-2 outline-none cursor-pointer transition-all ${getStatusStyle(activity.status)} ${isCompleted ? 'opacity-70 cursor-not-allowed' : ''}`}
                       >
                         {Object.values(ActivityStatus).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
                       </select>
@@ -202,103 +202,90 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                 <div className="px-6 md:px-10 pb-10 md:pb-12 pt-6 md:pt-8 bg-slate-50/40 border-t border-slate-100 animate-in slide-in-from-top-2 duration-300">
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
                     <div className="lg:col-span-8 space-y-8">
-                      {/* Vista para Pendiente / Completado (Solo Lectura) */}
-                      {(isPending || isCompleted) && (
-                        <div className="space-y-8 animate-in fade-in duration-500">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                              <Label>Contacto Atendido</Label>
-                              <DataBox value={activity.attendeeName} subValue={activity.attendeeRole} />
-                            </div>
-                            <div>
-                              <Label>Teléfono</Label>
-                              <DataBox value={activity.attendeePhone} />
-                            </div>
-                          </div>
-                          <div>
-                            <Label>Propuestas y Comentarios</Label>
-                            <TextBox value={activity.proposals} />
-                          </div>
-                          <div>
-                            <Label>Acuerdos Alcanzados</Label>
-                            <TextBox value={activity.agreements} color="text-indigo-900 font-bold" bg="bg-indigo-50/30" border="border-indigo-100" />
-                          </div>
-                          <div>
-                            <Label>Referido a</Label>
-                            <DataBox value={activity.referral} />
-                          </div>
+                      {/* VISTA SEGÚN ESTADO */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <Label>Contacto Atendido</Label>
+                          {isInProgress ? (
+                             <input className="custom-input" value={activity.attendeeName} onChange={e => onUpdateActivity(activity.id, { attendeeName: e.target.value })} />
+                          ) : (
+                             <DataBox value={activity.attendeeName} subValue={activity.attendeeRole} />
+                          )}
                         </div>
-                      )}
+                        <div>
+                          <Label>Teléfono</Label>
+                          {isInProgress ? (
+                             <input className="custom-input" value={activity.attendeePhone} onChange={e => onUpdateActivity(activity.id, { attendeePhone: e.target.value })} />
+                          ) : (
+                             <DataBox value={activity.attendeePhone} />
+                          )}
+                        </div>
+                      </div>
 
-                      {/* Vista para En Proceso (Editable) */}
-                      {isInProgress && (
-                        <div className="space-y-8 animate-in slide-in-from-left-2 duration-500">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                              <Label>Contacto Atendido</Label>
-                              <input className="custom-input" value={activity.attendeeName} onChange={e => onUpdateActivity(activity.id, { attendeeName: e.target.value })} />
-                            </div>
-                            <div>
-                              <Label>Teléfono</Label>
-                              <input className="custom-input" value={activity.attendeePhone} onChange={e => onUpdateActivity(activity.id, { attendeePhone: e.target.value })} />
-                            </div>
-                          </div>
-                          <div>
-                            <Label>Propuestas y Comentarios</Label>
+                      <div className="space-y-8">
+                        <div>
+                          <Label>Propuestas y Comentarios</Label>
+                          {isInProgress ? (
                             <textarea 
                               className="custom-input min-h-[120px]" 
                               value={activity.proposals} 
                               onChange={e => onUpdateActivity(activity.id, { proposals: e.target.value })}
-                              placeholder="Habilitado: Ingrese comentarios surgidos en la visita..."
+                              placeholder="Campo habilitado en proceso..."
                             />
-                          </div>
-                          <div>
-                            <Label>Acuerdos Alcanzados</Label>
+                          ) : (
+                            <TextBox value={activity.proposals} />
+                          )}
+                        </div>
+
+                        <div>
+                          <Label>Acuerdos Alcanzados</Label>
+                          {isInProgress ? (
                             <textarea 
-                              className="custom-input min-h-[120px] font-bold text-indigo-900" 
+                              className="custom-input min-h-[120px] font-bold text-indigo-900 border-indigo-100" 
                               value={activity.agreements} 
                               onChange={e => onUpdateActivity(activity.id, { agreements: e.target.value })}
-                              placeholder="Habilitado: Detalle los acuerdos pactados..."
+                              placeholder="Campo habilitado en proceso..."
                             />
-                          </div>
-                          <div>
-                            <Label>Referido a (Unidad Institucional)</Label>
+                          ) : (
+                            <TextBox value={activity.agreements} color="text-indigo-900 font-bold" bg="bg-indigo-50/30" border="border-indigo-100" />
+                          )}
+                        </div>
+                        
+                        <div>
+                          <Label>¿Referido a otra área?</Label>
+                          {isInProgress ? (
                             <input 
                               className="custom-input" 
                               value={activity.referral} 
                               onChange={e => onUpdateActivity(activity.id, { referral: e.target.value })}
-                              placeholder="Habilitado: Ej: Desarrollo Urbano / Mantenimiento Vial"
+                              placeholder="Especifique unidad institucional..."
                             />
-                          </div>
+                          ) : (
+                            <DataBox value={activity.referral} />
+                          )}
                         </div>
-                      )}
+                      </div>
 
-                      {/* Vista para Cancelado */}
                       {isCancelled && (
-                        <div className="bg-red-50 p-6 md:p-8 rounded-3xl border border-red-100 space-y-6 animate-in slide-in-from-top-4">
+                        <div className="bg-red-50 p-6 md:p-8 rounded-3xl border-2 border-red-100 space-y-6 animate-in slide-in-from-top-4">
                            <div className="flex items-center gap-3 text-red-600">
                               <i className="fa-solid fa-ban text-2xl"></i>
-                              <h4 className="font-black text-xs uppercase tracking-widest">Actividad Cancelada</h4>
+                              <h4 className="font-black text-xs uppercase tracking-widest">Motivos de Cancelación</h4>
                            </div>
-                           <div className="space-y-2">
-                              <Label>Motivo Detallado de la Cancelación</Label>
-                              <textarea 
-                                 className="custom-input border-red-200 focus:border-red-500 bg-white" 
-                                 value={activity.cancellationReason}
-                                 onChange={e => onUpdateActivity(activity.id, { cancellationReason: e.target.value })}
-                                 placeholder="Escriba aquí los motivos de la cancelación..."
-                              />
-                           </div>
+                           <textarea 
+                              className="custom-input border-red-200 focus:border-red-500 bg-white" 
+                              value={activity.cancellationReason}
+                              onChange={e => onUpdateActivity(activity.id, { cancellationReason: e.target.value })}
+                              placeholder="Describa el motivo de la cancelación de la labor..."
+                           />
                            <label className="flex items-center gap-3 cursor-pointer group">
-                              <div className="relative">
-                                 <input 
-                                   type="checkbox" 
-                                   checked={activity.willReschedule}
-                                   onChange={e => onUpdateActivity(activity.id, { willReschedule: e.target.checked })}
-                                   className="w-6 h-6 rounded-lg border-red-200 text-red-600 focus:ring-red-500 cursor-pointer transition-all" 
-                                 />
-                              </div>
-                              <span className="text-sm font-black text-red-800 uppercase tracking-tight group-hover:translate-x-1 transition-transform">¿Requiere Reprogramación?</span>
+                              <input 
+                                type="checkbox" 
+                                checked={activity.willReschedule}
+                                onChange={e => onUpdateActivity(activity.id, { willReschedule: e.target.checked })}
+                                className="w-6 h-6 rounded-lg border-red-200 text-red-600 focus:ring-red-500 cursor-pointer" 
+                              />
+                              <span className="text-sm font-black text-red-800 uppercase tracking-tight">¿Se requiere reprogramación?</span>
                            </label>
                         </div>
                       )}
@@ -315,7 +302,7 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                             <i className="fa-brands fa-google-drive text-3xl text-emerald-600 group-hover:scale-110 transition-transform"></i>
                             <div>
                                <p className="text-[10px] font-black uppercase text-slate-400">Google Drive</p>
-                               <p className="text-[11px] font-bold text-slate-700">Explorar Mi Drive</p>
+                               <p className="text-[11px] font-bold text-slate-700">Explorar / Vincular</p>
                             </div>
                           </button>
 
@@ -325,16 +312,16 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                           >
                             <i className="fa-solid fa-camera-retro text-3xl text-indigo-600 group-hover:scale-110 transition-transform"></i>
                             <div>
-                               <p className="text-[10px] font-black uppercase text-slate-400">Galería / Cámara</p>
-                               <p className="text-[11px] font-bold text-slate-700">Subir Evidencia Local</p>
+                               <p className="text-[10px] font-black uppercase text-slate-400">Galería Local</p>
+                               <p className="text-[11px] font-bold text-slate-700">Subir Fotografía</p>
                             </div>
                             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => handlePhotoUpload(e, activity.id)} />
                           </button>
                         </div>
                         
                         {activity.verificationPhoto && (
-                          <div className="relative mt-4 rounded-3xl overflow-hidden border-4 border-white shadow-xl">
-                            <img src={activity.verificationPhoto} className="w-full aspect-video object-cover" alt="Evidencia de gestión" />
+                          <div className="relative mt-4 rounded-3xl overflow-hidden border-4 border-white shadow-xl group">
+                            <img src={activity.verificationPhoto} className="w-full aspect-video object-cover" alt="Evidencia" />
                             <div className="absolute top-3 right-3 bg-emerald-500 text-white px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2">
                                <i className="fa-solid fa-cloud-arrow-up text-[10px]"></i>
                                <span className="text-[8px] font-black uppercase">Sincronizado</span>
@@ -344,17 +331,17 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Enlace Externo (Drive/Docs)</Label>
-                        {isInProgress ? (
+                        <Label>Enlace de Drive</Label>
+                        {!isCompleted ? (
                           <input 
                             className="custom-input text-[11px] italic" 
                             value={activity.driveLinks}
                             onChange={e => onUpdateActivity(activity.id, { driveLinks: e.target.value })}
-                            placeholder="https://drive.google.com/..."
+                            placeholder="Enlace de la carpeta..."
                           />
                         ) : (
                           <a href={activity.driveLinks} target="_blank" className="block p-4 bg-emerald-50 text-emerald-700 rounded-2xl text-[10px] font-black truncate hover:underline">
-                             {activity.driveLinks || 'Sin enlace adjunto'}
+                             {activity.driveLinks || 'Sin enlace institucional'}
                           </a>
                         )}
                       </div>
@@ -372,8 +359,8 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
           <div className="bg-white rounded-[2.5rem] md:rounded-[4rem] shadow-2xl w-full max-w-5xl overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col">
             <div className="px-8 md:px-14 py-8 md:py-12 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 flex-shrink-0">
               <div>
-                <h3 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Nueva Gestión Institucional</h3>
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] mt-2">Bitácora territorial de campo</p>
+                <h3 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Nueva Gestión de Campo</h3>
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] mt-2">Apertura de bitácora institucional</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="w-12 h-12 md:w-16 md:h-16 flex items-center justify-center bg-white rounded-full text-slate-300 hover:text-red-500 shadow-sm border border-slate-100 transition-all">
                 <i className="fa-solid fa-xmark text-xl"></i>
@@ -383,7 +370,7 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
             <form onSubmit={handleSubmit} className="p-8 md:p-14 space-y-10 overflow-y-auto no-scrollbar flex-1">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                 <div>
-                  <Label>Fecha de Labor</Label>
+                  <Label>Fecha</Label>
                   <input required type="date" className="custom-input" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
                 </div>
                 <div>
@@ -391,7 +378,7 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                   <input required type="time" className="custom-input" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} />
                 </div>
                 <div>
-                  <Label>Estado de Apertura</Label>
+                  <Label>Estado Inicial</Label>
                   <select required className="custom-input font-black text-indigo-600" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
                     {Object.values(ActivityStatus).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
                   </select>
@@ -400,11 +387,11 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                  <Label>Comunidad / Sector / Colonia</Label>
-                  <input required className="custom-input" value={formData.community} onChange={e => setFormData({...formData, community: e.target.value})} placeholder="Ej: Condominio Los Lirios" />
+                  <Label>Comunidad / Colonia</Label>
+                  <input required className="custom-input" value={formData.community} onChange={e => setFormData({...formData, community: e.target.value})} placeholder="Ej: Calle Arce" />
                 </div>
                 <div>
-                  <Label>Tipo de Gestión</Label>
+                  <Label>Tipo de Actividad</Label>
                   <select required className="custom-input font-bold" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})}>
                     {Object.values(ActivityType).map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
@@ -412,28 +399,28 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
               </div>
 
               <div>
-                <Label>Objetivo Estratégico de la Visita</Label>
-                <input required className="custom-input font-black text-indigo-900" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} placeholder="Ej: Verificación de alumbrado público en pasajes internos" />
+                <Label>Objetivo Principal</Label>
+                <input required className="custom-input font-black" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} placeholder="Finalidad de la visita..." />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div>
-                  <Label>Persona de Contacto</Label>
+                  <Label>Persona Atendida</Label>
                   <input required className="custom-input" value={formData.attendeeName} onChange={e => setFormData({...formData, attendeeName: e.target.value})} placeholder="Nombre completo" />
                 </div>
                 <div>
-                  <Label>Cargo / Rol en Comunidad</Label>
-                  <input className="custom-input" value={formData.attendeeRole} onChange={e => setFormData({...formData, attendeeRole: e.target.value})} placeholder="Ej: Directivo de ADESCO" />
+                  <Label>Cargo / Rol</Label>
+                  <input className="custom-input" value={formData.attendeeRole} onChange={e => setFormData({...formData, attendeeRole: e.target.value})} placeholder="Ej: Vocal ADESCO" />
                 </div>
                 <div>
-                  <Label>Teléfono de Contacto</Label>
+                  <Label>Teléfono</Label>
                   <input className="custom-input" value={formData.attendeePhone} onChange={e => setFormData({...formData, attendeePhone: e.target.value})} placeholder="7777-2727" />
                 </div>
               </div>
 
               <div className="flex flex-col md:flex-row justify-center md:justify-end gap-6 pt-10 border-t border-slate-100 flex-shrink-0">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-5 text-xs font-black text-slate-400 hover:text-slate-800 transition-colors uppercase tracking-[0.2em]">Cancelar</button>
-                <button type="submit" className="bg-indigo-600 text-white px-20 py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-indigo-200 active:scale-95 transition-all">Guardar Actividad</button>
+                <button type="submit" className="bg-indigo-600 text-white px-20 py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-indigo-200 active:scale-95 transition-all">Guardar en Bitácora</button>
               </div>
             </form>
           </div>

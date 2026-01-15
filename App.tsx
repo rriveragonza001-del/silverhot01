@@ -18,11 +18,11 @@ import ProfileModule from './components/ProfileModule';
 type View = 'dashboard' | 'tracking' | 'activities' | 'reports' | 'program' | 'final-report' | 'admin-custom-reports' | 'team' | 'user-management' | 'admin-notifications' | 'admin-assignments' | 'profile';
 
 const STORAGE_KEYS = {
-  PROMOTERS: 'pf_promoters_final_v6',
-  ACTIVITIES: 'pf_activities_final_v6',
-  NOTIFICATIONS: 'pf_notifications_final_v6',
-  AUTH_ID: 'pf_auth_user_id',
-  AUTH_ROLE: 'pf_auth_user_role'
+  PROMOTERS: 'pf_promoters_v7',
+  ACTIVITIES: 'pf_activities_v7',
+  NOTIFICATIONS: 'pf_notifications_v7',
+  AUTH_ID: 'pf_auth_user_id_v7',
+  AUTH_ROLE: 'pf_auth_user_role_v7'
 };
 
 const App: React.FC = () => {
@@ -64,7 +64,7 @@ const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
     
     setShowSaveSuccess(true);
-    const timer = setTimeout(() => setShowSaveSuccess(false), 2000);
+    const timer = setTimeout(() => setShowSaveSuccess(false), 1500);
     return () => clearTimeout(timer);
   }, [promoters, activities, notifications]);
 
@@ -75,9 +75,11 @@ const App: React.FC = () => {
   }, []);
 
   const handleAddUser = (user: Promoter) => setPromoters(prev => [user, ...prev]);
-  const handleUpdateUser = (id: string, updates: Partial<Promoter>) => setPromoters(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
+  const handleUpdateUser = (id: string, updates: Partial<Promoter>) => {
+    setPromoters(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
+  };
   const handleDeleteUser = (id: string) => {
-    if(confirm('¿Seguro que deseas eliminar a este usuario permanentemente?')) {
+    if(confirm('¿Seguro que deseas eliminar a este usuario?')) {
       setPromoters(prev => prev.filter(u => u.id !== id));
     }
   };
@@ -100,7 +102,7 @@ const App: React.FC = () => {
       title: n.title || '',
       message: n.message || '',
       type: n.type || 'ADMIN_ANNOUNCEMENT',
-      timestamp: n.timestamp || new Date().toLocaleString(),
+      timestamp: new Date().toLocaleString(),
       read: false,
       recipientId: n.recipientId,
       senderId: currentPromoterId
