@@ -15,6 +15,7 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
   
   const initialForm: Partial<Promoter> = {
     name: '',
+    username: '',
     email: '',
     phone: '',
     password: '',
@@ -23,7 +24,8 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
     role: UserRole.FIELD_PROMOTER,
     status: 'inactive',
     isOnline: false,
-    photo: ''
+    photo: '',
+    mustChangePassword: true
   };
 
   const [formData, setFormData] = useState<Partial<Promoter>>(initialForm);
@@ -40,7 +42,8 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
         lastLocation: { lat: 13.6929, lng: -89.2182 },
         lastUpdated: new Date().toISOString(),
         lastConnection: new Date().toISOString(),
-        status: 'active'
+        status: 'active',
+        mustChangePassword: true
       } as Promoter;
       onAddUser(newUser);
     }
@@ -86,7 +89,7 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
             <thead className="bg-slate-50 text-[10px] uppercase font-black text-slate-400 tracking-widest">
               <tr>
                 <th className="px-6 py-4">Usuario / Cargo</th>
-                <th className="px-6 py-4">Acceso / Email</th>
+                <th className="px-6 py-4">Acceso / Login</th>
                 <th className="px-6 py-4">Zona</th>
                 <th className="px-6 py-4 text-right">Acciones</th>
               </tr>
@@ -104,7 +107,7 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-xs text-slate-600 font-bold">{user.email}</p>
+                    <p className="text-xs text-slate-600 font-bold">{user.username || user.email}</p>
                     <p className="text-[10px] text-slate-400 font-medium">Clave: {user.password}</p>
                   </td>
                   <td className="px-6 py-4">
@@ -131,7 +134,7 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
             <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center">
               <div>
                 <h3 className="text-2xl font-black text-slate-800 tracking-tight">{editingUser ? 'Modificar Usuario' : 'Crear Usuario'}</h3>
-                <p className="text-sm text-slate-400 font-medium">Asegura los campos de acceso y zona asignada</p>
+                <p className="text-sm text-slate-400 font-medium">Define los accesos del personal</p>
               </div>
               <button onClick={closeModal} className="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><i className="fa-solid fa-xmark text-lg"></i></button>
             </div>
@@ -139,37 +142,42 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Nombre Completo</label>
-                  <input required className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm focus:border-indigo-600 outline-none transition-all text-slate-800 font-bold" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ej: Silvia Maribel Domínguez" />
+                  <input required className="m-input" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Nombre completo" />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-1">Usuario de Acceso</label>
+                  <input required className="m-input" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} placeholder="nombre.apellido" />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-1">Contraseña</label>
+                  <input required type="text" className="m-input" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="password123" />
                 </div>
                 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Correo Electrónico</label>
-                  <input required className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm focus:border-indigo-600 outline-none transition-all text-slate-800 font-bold" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="ejemplo@san-salvador.gob" />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-1">Contraseña de Acceso</label>
-                  <input required type="text" className="w-full bg-indigo-50 border-2 border-indigo-100 rounded-2xl px-5 py-4 text-sm focus:border-indigo-600 outline-none transition-all text-indigo-700 font-black" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="Asigna una clave" />
+                  <input required className="m-input" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="email@ejemplo.com" />
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Cargo</label>
-                  <input required className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm focus:border-indigo-600 outline-none transition-all text-slate-800 font-bold" value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})} placeholder="Ej: Referente de Acción Social" />
+                  <input required className="m-input" value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})} placeholder="Cargo" />
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Teléfono</label>
-                  <input required className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm focus:border-indigo-600 outline-none transition-all text-slate-800 font-bold" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="77467950" />
+                  <input required className="m-input" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="Número telefónico" />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Zona / Sector Asignado</label>
-                  <input className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm focus:border-indigo-600 outline-none transition-all text-slate-800 font-bold" value={formData.zone} onChange={e => setFormData({...formData, zone: e.target.value})} placeholder="ZONA 11-R3" />
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Zona</label>
+                  <input className="m-input" value={formData.zone} onChange={e => setFormData({...formData, zone: e.target.value})} placeholder="Zona asignada" />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Rol en App</label>
-                  <select className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-black focus:border-indigo-600 outline-none transition-all text-slate-800 appearance-none" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as UserRole})}>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Rol</label>
+                  <select className="m-input appearance-none" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as UserRole})}>
                     <option value={UserRole.FIELD_PROMOTER}>Gestor de Campo</option>
                     <option value={UserRole.ADMIN}>Administrador</option>
                   </select>
@@ -178,12 +186,31 @@ const UserManagementModule: React.FC<UserManagementModuleProps> = ({ users, onAd
 
               <div className="flex flex-col-reverse md:flex-row justify-center md:justify-end gap-3 pt-8">
                 <button type="button" onClick={closeModal} className="px-8 py-4 text-sm font-black text-slate-400 hover:text-slate-800 transition-colors uppercase tracking-widest">Cancelar</button>
-                <button type="submit" className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-indigo-200 active:scale-95 transition-all">Guardar Cambios</button>
+                <button type="submit" className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl transition-all">Guardar</button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <style>{`
+        .m-input {
+          width: 100%;
+          background: #f8fafc;
+          border: 2px solid #f1f5f9;
+          border-radius: 1rem;
+          padding: 0.75rem 1.25rem;
+          font-size: 0.9rem;
+          color: #1e293b;
+          font-weight: 700;
+          outline: none;
+          transition: all 0.2s;
+        }
+        .m-input:focus {
+          border-color: #4f46e5;
+          background: white;
+        }
+      `}</style>
     </div>
   );
 };

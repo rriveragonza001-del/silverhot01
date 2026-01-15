@@ -93,6 +93,8 @@ export interface Promoter {
   role: UserRole;
   googleDriveConnected?: boolean;
   googleCalendarSynced?: boolean;
+  mustChangePassword?: boolean;
+  username?: string;
 }
 
 export interface Notification {

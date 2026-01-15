@@ -13,8 +13,9 @@ import Login from './components/Login';
 import UserManagementModule from './components/UserManagementModule';
 import AdminNotificationModule from './components/AdminNotificationModule';
 import AdminAssignmentModule from './components/AdminAssignmentModule';
+import ProfileModule from './components/ProfileModule';
 
-type View = 'dashboard' | 'tracking' | 'activities' | 'reports' | 'program' | 'final-report' | 'admin-custom-reports' | 'team' | 'user-management' | 'admin-notifications' | 'admin-assignments';
+type View = 'dashboard' | 'tracking' | 'activities' | 'reports' | 'program' | 'final-report' | 'admin-custom-reports' | 'team' | 'user-management' | 'admin-notifications' | 'admin-assignments' | 'profile';
 
 const STORAGE_KEYS = {
   PROMOTERS: 'pf_promoters_final_v6',
@@ -151,6 +152,7 @@ const App: React.FC = () => {
     { id: 'admin-custom-reports', label: 'Reportes', icon: 'fa-file-invoice-dollar', adminOnly: true },
     { id: 'program', label: 'Agenda', icon: 'fa-calendar-plus' },
     { id: 'final-report', label: 'Exportar', icon: 'fa-file-invoice', promoterOnly: true },
+    { id: 'profile', label: 'Mi Perfil', icon: 'fa-user-circle' },
   ].filter(item => {
     if (item.adminOnly && userRole !== UserRole.ADMIN) return false;
     if (item.promoterOnly && userRole !== UserRole.FIELD_PROMOTER) return false;
@@ -188,7 +190,7 @@ const App: React.FC = () => {
         <button onClick={handleLogout} className="w-full bg-slate-800/50 hover:bg-red-900/30 hover:text-red-400 p-4 rounded-2xl flex items-center gap-3 text-xs font-black transition-all mb-6 uppercase tracking-widest text-slate-300">
           <i className="fa-solid fa-right-from-bracket"></i> Salir del Sistema
         </button>
-        <div className="p-4 bg-slate-800/30 rounded-2xl flex items-center gap-4 border border-slate-800/50">
+        <div className="p-4 bg-slate-800/30 rounded-2xl flex items-center gap-4 border border-slate-800/50 cursor-pointer hover:bg-slate-800/50 transition-all" onClick={() => setActiveView('profile')}>
           <img src={currentPromoter?.photo || `https://picsum.photos/seed/${currentPromoter?.id}/200`} className="w-10 h-10 rounded-xl border border-slate-700 object-cover shadow-sm" />
           <div className="overflow-hidden">
             <p className="text-[11px] font-black text-white truncate uppercase tracking-tight">{currentPromoter?.name}</p>
@@ -199,7 +201,7 @@ const App: React.FC = () => {
     </>
   );
 
-  if (!isAuthenticated) return <Login onLogin={handleLogin} users={promoters} />;
+  if (!isAuthenticated) return <Login onLogin={handleLogin} users={promoters} onUpdateUser={handleUpdateUser} />;
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
@@ -242,7 +244,6 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-4">
-             {/* Notificaciones para el Gestor */}
              {userRole === UserRole.FIELD_PROMOTER && (
                 <div className="relative">
                   <button className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-all">
@@ -276,7 +277,6 @@ const App: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto scroll-native pb-24 lg:pb-8">
           <div className="p-4 md:p-8 max-w-7xl mx-auto">
-            {/* Mostrar avisos críticos para Gestores en el inicio */}
             {userRole === UserRole.FIELD_PROMOTER && activeView === 'dashboard' && userNotifications.some(n => n.type === 'ADMIN_WARNING') && (
                <div className="mb-8 p-6 bg-red-600 text-white rounded-[2rem] shadow-xl shadow-red-200 flex items-center gap-6 animate-pulse">
                   <i className="fa-solid fa-triangle-exclamation text-4xl"></i>
@@ -334,6 +334,7 @@ const App: React.FC = () => {
               />
             )}
             {activeView === 'final-report' && <ReportingModule activities={filteredActivities} promoter={currentPromoter} />}
+            {activeView === 'profile' && <ProfileModule user={currentPromoter} onUpdateUser={handleUpdateUser} />}
           </div>
         </div>
 
