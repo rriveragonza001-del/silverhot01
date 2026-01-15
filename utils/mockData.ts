@@ -7,10 +7,10 @@ export const MOCK_PROMOTERS: Promoter[] = [
   {
     id: 'admin-1',
     name: 'Ricardo González',
-    username: 'ricardo.gonzalez',
+    username: 'admin',
     photo: 'https://picsum.photos/seed/ricardo/200/200',
     email: 'ricardo.gonzalez@promoterflow.com',
-    password: 'password123',
+    password: 'admin123',
     phone: '+503 2200 0001',
     position: 'Administrador General',
     status: 'active',

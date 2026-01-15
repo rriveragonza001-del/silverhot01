@@ -209,8 +209,8 @@ const AdminNotificationModule: React.FC<AdminNotificationModuleProps> = ({ promo
           <div className="p-8 md:p-12 space-y-8 animate-in fade-in duration-300">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div>
-                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Historial de Gestiones Admin</h2>
-                <p className="text-sm text-slate-500 font-medium">Revisa todos los avisos y sanciones emitidas</p>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Historial de Comunicaciones</h2>
+                <p className="text-sm text-slate-500 font-medium">Revisa quién, cuándo y por qué se emitieron los avisos</p>
               </div>
               <button 
                 onClick={handleExportPDF}
@@ -224,10 +224,10 @@ const AdminNotificationModule: React.FC<AdminNotificationModuleProps> = ({ promo
               <table className="w-full text-left border-collapse">
                 <thead className="bg-white border-b border-slate-100">
                   <tr>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha / Hora</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Destinatario</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cuándo (Fecha)</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">A Quién (Gestor)</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Título</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Por Qué (Título/Motivo)</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
                   </tr>
                 </thead>
@@ -238,14 +238,14 @@ const AdminNotificationModule: React.FC<AdminNotificationModuleProps> = ({ promo
                       : 'Difusión General';
                     return (
                       <tr key={n.id} className="hover:bg-white transition-colors group">
-                        <td className="px-6 py-5 text-xs text-slate-500 font-medium">{n.timestamp}</td>
+                        <td className="px-6 py-5 text-xs text-slate-500 font-medium whitespace-nowrap">{n.timestamp}</td>
                         <td className="px-6 py-5">
                           <p className="text-xs font-black text-slate-800">{recipientName}</p>
-                          <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tight">{n.recipientId ? 'Individual' : 'Masivo'}</p>
+                          <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tight">{n.recipientId ? 'Personalizado' : 'Grupal'}</p>
                         </td>
                         <td className="px-6 py-5">
                           <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest border ${n.type === 'ADMIN_WARNING' ? 'bg-red-50 border-red-100 text-red-600' : 'bg-indigo-50 border-indigo-100 text-indigo-600'}`}>
-                            {n.type === 'ADMIN_WARNING' ? 'Amonestación' : 'Aviso'}
+                            {n.type === 'ADMIN_WARNING' ? 'Sanción' : 'Informativo'}
                           </span>
                         </td>
                         <td className="px-6 py-5">
@@ -255,7 +255,7 @@ const AdminNotificationModule: React.FC<AdminNotificationModuleProps> = ({ promo
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-2">
                             <i className="fa-solid fa-circle-check text-emerald-500 text-[10px]"></i>
-                            <span className="text-[9px] font-black text-slate-400 uppercase">Entregado</span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase">Recibido</span>
                           </div>
                         </td>
                       </tr>
@@ -282,8 +282,8 @@ const AdminNotificationModule: React.FC<AdminNotificationModuleProps> = ({ promo
           <i className="fa-solid fa-shield-halved text-xl"></i>
         </div>
         <div className="text-[11px] text-amber-900 leading-relaxed font-medium">
-          <p className="font-black mb-1 uppercase tracking-widest">Protocolo de Seguridad y Auditoría:</p>
-          Toda comunicación emitida desde este centro de comando es vinculante y se almacena en el log permanente de auditoría del sistema. Los gestores reciben una alerta sonora en sus dispositivos al momento de la recepción.
+          <p className="font-black mb-1 uppercase tracking-widest">Protocolo de Auditoría:</p>
+          Este historial permite auditar el comportamiento y las comunicaciones oficiales enviadas al personal. Los registros son inalterables y sirven como base para la evaluación de desempeño.
         </div>
       </div>
     </div>

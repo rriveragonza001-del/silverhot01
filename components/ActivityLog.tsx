@@ -145,6 +145,7 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
         {filtered.map(activity => {
           const isExpanded = expandedActivity === activity.id;
           const promoter = getPromoter(activity.promoterId);
+          const isPending = activity.status === ActivityStatus.PENDING;
           const isInProgress = activity.status === ActivityStatus.IN_PROGRESS;
           const isCompleted = activity.status === ActivityStatus.COMPLETED;
           const isCancelled = activity.status === ActivityStatus.CANCELLED;
@@ -201,78 +202,103 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                 <div className="px-6 md:px-10 pb-10 md:pb-12 pt-6 md:pt-8 bg-slate-50/40 border-t border-slate-100 animate-in slide-in-from-top-2 duration-300">
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
                     <div className="lg:col-span-8 space-y-8">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <Label>Contacto Atendido</Label>
-                          <DataBox value={activity.attendeeName} subValue={activity.attendeeRole} />
+                      {/* Vista para Pendiente / Completado (Solo Lectura) */}
+                      {(isPending || isCompleted) && (
+                        <div className="space-y-8 animate-in fade-in duration-500">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <Label>Contacto Atendido</Label>
+                              <DataBox value={activity.attendeeName} subValue={activity.attendeeRole} />
+                            </div>
+                            <div>
+                              <Label>Teléfono</Label>
+                              <DataBox value={activity.attendeePhone} />
+                            </div>
+                          </div>
+                          <div>
+                            <Label>Propuestas y Comentarios</Label>
+                            <TextBox value={activity.proposals} />
+                          </div>
+                          <div>
+                            <Label>Acuerdos Alcanzados</Label>
+                            <TextBox value={activity.agreements} color="text-indigo-900 font-bold" bg="bg-indigo-50/30" border="border-indigo-100" />
+                          </div>
+                          <div>
+                            <Label>Referido a</Label>
+                            <DataBox value={activity.referral} />
+                          </div>
                         </div>
-                        <div>
-                          <Label>Teléfono</Label>
-                          <DataBox value={activity.attendeePhone} />
-                        </div>
-                      </div>
+                      )}
 
-                      <div className="space-y-8">
-                        <div>
-                          <Label>Propuestas y Comentarios</Label>
-                          {isInProgress ? (
+                      {/* Vista para En Proceso (Editable) */}
+                      {isInProgress && (
+                        <div className="space-y-8 animate-in slide-in-from-left-2 duration-500">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <Label>Contacto Atendido</Label>
+                              <input className="custom-input" value={activity.attendeeName} onChange={e => onUpdateActivity(activity.id, { attendeeName: e.target.value })} />
+                            </div>
+                            <div>
+                              <Label>Teléfono</Label>
+                              <input className="custom-input" value={activity.attendeePhone} onChange={e => onUpdateActivity(activity.id, { attendeePhone: e.target.value })} />
+                            </div>
+                          </div>
+                          <div>
+                            <Label>Propuestas y Comentarios</Label>
                             <textarea 
                               className="custom-input min-h-[120px]" 
                               value={activity.proposals} 
                               onChange={e => onUpdateActivity(activity.id, { proposals: e.target.value })}
-                              placeholder="Ingrese comentarios surgidos en la visita..."
+                              placeholder="Habilitado: Ingrese comentarios surgidos en la visita..."
                             />
-                          ) : (
-                            <TextBox value={activity.proposals} />
-                          )}
-                        </div>
-
-                        <div>
-                          <Label>Acuerdos Alcanzados</Label>
-                          {isInProgress ? (
+                          </div>
+                          <div>
+                            <Label>Acuerdos Alcanzados</Label>
                             <textarea 
                               className="custom-input min-h-[120px] font-bold text-indigo-900" 
                               value={activity.agreements} 
                               onChange={e => onUpdateActivity(activity.id, { agreements: e.target.value })}
-                              placeholder="Detalle los acuerdos pactados..."
+                              placeholder="Habilitado: Detalle los acuerdos pactados..."
                             />
-                          ) : (
-                            <TextBox value={activity.agreements} color="text-indigo-900 font-bold" bg="bg-indigo-50/30" border="border-indigo-100" />
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label>Referido a (Unidad Institucional)</Label>
-                          {isInProgress ? (
+                          </div>
+                          <div>
+                            <Label>Referido a (Unidad Institucional)</Label>
                             <input 
                               className="custom-input" 
                               value={activity.referral} 
                               onChange={e => onUpdateActivity(activity.id, { referral: e.target.value })}
-                              placeholder="Ej: Desarrollo Urbano / Mantenimiento Vial"
+                              placeholder="Habilitado: Ej: Desarrollo Urbano / Mantenimiento Vial"
                             />
-                          ) : (
-                            <DataBox value={activity.referral} />
-                          )}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
+                      {/* Vista para Cancelado */}
                       {isCancelled && (
-                        <div className="bg-red-50 p-6 md:p-8 rounded-3xl border border-red-100 space-y-4">
-                           <Label>Bitácora de Cancelación</Label>
-                           <textarea 
-                              className="custom-input border-red-200" 
-                              value={activity.cancellationReason}
-                              onChange={e => onUpdateActivity(activity.id, { cancellationReason: e.target.value })}
-                              placeholder="Describa el motivo por el cual se canceló la gestión institucional..."
-                           />
-                           <label className="flex items-center gap-3 cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                checked={activity.willReschedule}
-                                onChange={e => onUpdateActivity(activity.id, { willReschedule: e.target.checked })}
-                                className="w-5 h-5 rounded border-red-200 text-red-600 focus:ring-red-500" 
+                        <div className="bg-red-50 p-6 md:p-8 rounded-3xl border border-red-100 space-y-6 animate-in slide-in-from-top-4">
+                           <div className="flex items-center gap-3 text-red-600">
+                              <i className="fa-solid fa-ban text-2xl"></i>
+                              <h4 className="font-black text-xs uppercase tracking-widest">Actividad Cancelada</h4>
+                           </div>
+                           <div className="space-y-2">
+                              <Label>Motivo Detallado de la Cancelación</Label>
+                              <textarea 
+                                 className="custom-input border-red-200 focus:border-red-500 bg-white" 
+                                 value={activity.cancellationReason}
+                                 onChange={e => onUpdateActivity(activity.id, { cancellationReason: e.target.value })}
+                                 placeholder="Escriba aquí los motivos de la cancelación..."
                               />
-                              <span className="text-sm font-black text-red-800 uppercase tracking-tight">¿Actividad para Reprogramar?</span>
+                           </div>
+                           <label className="flex items-center gap-3 cursor-pointer group">
+                              <div className="relative">
+                                 <input 
+                                   type="checkbox" 
+                                   checked={activity.willReschedule}
+                                   onChange={e => onUpdateActivity(activity.id, { willReschedule: e.target.checked })}
+                                   className="w-6 h-6 rounded-lg border-red-200 text-red-600 focus:ring-red-500 cursor-pointer transition-all" 
+                                 />
+                              </div>
+                              <span className="text-sm font-black text-red-800 uppercase tracking-tight group-hover:translate-x-1 transition-transform">¿Requiere Reprogramación?</span>
                            </label>
                         </div>
                       )}
@@ -319,7 +345,7 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
 
                       <div className="space-y-2">
                         <Label>Enlace Externo (Drive/Docs)</Label>
-                        {!isCompleted ? (
+                        {isInProgress ? (
                           <input 
                             className="custom-input text-[11px] italic" 
                             value={activity.driveLinks}
