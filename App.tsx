@@ -93,6 +93,20 @@ const App: React.FC = () => {
     setActivities(prev => [activityWithPromoter, ...prev]);
   };
 
+  const handleSendNotification = (n: Partial<Notification>) => {
+    const newNotif: Notification = {
+      id: 'notif-' + Date.now(),
+      title: n.title || '',
+      message: n.message || '',
+      type: n.type || 'ADMIN_ANNOUNCEMENT',
+      timestamp: n.timestamp || new Date().toLocaleString(),
+      read: false,
+      recipientId: n.recipientId,
+      senderId: currentPromoterId
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+  };
+
   const currentPromoter = useMemo(() => {
     return promoters.find(p => p.id === currentPromoterId) || promoters[0];
   }, [promoters, currentPromoterId]);
@@ -261,7 +275,7 @@ const App: React.FC = () => {
             )}
             {activeView === 'team' && <TeamModule promoters={promoters} />}
             {activeView === 'user-management' && <UserManagementModule users={promoters} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} />}
-            {activeView === 'admin-notifications' && <AdminNotificationModule promoters={promoters.filter(p => p.role === UserRole.FIELD_PROMOTER)} onSendNotification={(n) => {}} />}
+            {activeView === 'admin-notifications' && <AdminNotificationModule promoters={promoters.filter(p => p.role === UserRole.FIELD_PROMOTER)} notifications={notifications} onSendNotification={handleSendNotification} />}
             {activeView === 'admin-assignments' && <AdminAssignmentModule adminId={currentPromoterId} promoters={promoters.filter(p => p.role === UserRole.FIELD_PROMOTER)} onAssignActivities={(acts) => setActivities(prev => [...acts, ...prev])} />}
             {activeView === 'tracking' && <TrackingMap promoters={promoters} />}
             {activeView === 'activities' && (
