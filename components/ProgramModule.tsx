@@ -27,6 +27,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   const [isDayViewOpen, setIsDayViewOpen] = useState(false);
   const [targetDate, setTargetDate] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,53 +60,61 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   };
 
   const openRegister = (e: React.MouseEvent, date: string) => {
-    e.stopPropagation(); // Evitar que se abra la vista de día
+    e.stopPropagation();
     setTargetDate(date);
     setIsRegistering(true);
   };
 
-  // Función mejorada para exportar programación a PDF/Impresión
   const handleExportProgram = (type: 'diario' | 'semanal' | 'mensual') => {
     setIsProcessing(true);
+    setShowDownloadMenu(false);
     
     setTimeout(() => {
-      let filteredActivities = [...activities];
-      const todayStr = new Date().toISOString().split('T')[0];
+      let filtered = [...activities];
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
       
       if (type === 'diario') {
-        filteredActivities = activities.filter(a => a.date === todayStr);
+        filtered = activities.filter(a => a.date === todayStr);
       } else if (type === 'semanal') {
-        // Filtro simplificado de 7 días
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        filteredActivities = activities.filter(a => new Date(a.date) >= weekAgo);
+        const weekStart = new Date();
+        weekStart.setDate(today.getDate() - 7);
+        filtered = activities.filter(a => new Date(a.date) >= weekStart);
       }
 
       const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
+      if (!printWindow) {
+        alert("Por favor habilite las ventanas emergentes para descargar el documento.");
+        setIsProcessing(false);
+        return;
+      }
 
-      const title = `Programación ${type.charAt(0).toUpperCase() + type.slice(1)} de Actividades`;
+      const title = `PROGRAMACIÓN ${type.toUpperCase()} - ${promoterId === 'ALL' ? 'EQUIPO COMPLETO' : 'GESTOR INDIVIDUAL'}`;
       
       printWindow.document.write(`
+        <!DOCTYPE html>
         <html>
           <head>
             <title>${title}</title>
             <style>
-              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #334155; }
-              .header { text-align: center; border-bottom: 3px solid #4f46e5; padding-bottom: 20px; margin-bottom: 30px; }
-              .header h1 { color: #1e293b; margin: 0; text-transform: uppercase; letter-spacing: 2px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
-              th { background: #f1f5f9; color: #475569; padding: 12px; text-align: left; border: 1px solid #e2e8f0; text-transform: uppercase; }
-              td { padding: 12px; border: 1px solid #e2e8f0; }
-              .footer { margin-top: 40px; text-align: right; font-size: 10px; color: #94a3b8; }
-              .badge { padding: 4px 8px; rounded: 4px; font-weight: bold; font-size: 10px; }
+              body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #1e293b; }
+              .header { text-align: center; border-bottom: 4px solid #4f46e5; padding-bottom: 20px; margin-bottom: 30px; }
+              .header h1 { font-size: 24px; margin: 0; color: #1e293b; }
+              .meta { display: flex; justify-content: space-between; font-size: 12px; margin-top: 10px; color: #64748b; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; }
+              th { background: #f8fafc; color: #475569; padding: 12px; text-align: left; border: 1px solid #e2e8f0; font-size: 11px; text-transform: uppercase; }
+              td { padding: 12px; border: 1px solid #e2e8f0; font-size: 12px; }
+              .status { font-weight: bold; color: #4f46e5; }
+              .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 10px; text-align: center; color: #94a3b8; }
             </style>
           </head>
           <body>
             <div class="header">
               <h1>${title}</h1>
-              <p>PromoterFlow - Sistema de Gestión Institucional</p>
-              <p>Generado el: ${new Date().toLocaleString()}</p>
+              <div class="meta">
+                <span>PromoterFlow Gestión Institucional</span>
+                <span>Generado: ${new Date().toLocaleString()}</span>
+              </div>
             </div>
             <table>
               <thead>
@@ -119,8 +128,8 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                 </tr>
               </thead>
               <tbody>
-                ${filteredActivities.map(a => {
-                  const gestor = promoters.find(p => p.id === a.promoterId)?.name || 'N/A';
+                ${filtered.length > 0 ? filtered.map(a => {
+                  const gestor = promoters.find(p => p.id === a.promoterId)?.name || '---';
                   return `
                     <tr>
                       <td>${a.date}</td>
@@ -128,14 +137,19 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                       <td>${gestor}</td>
                       <td>${a.community}</td>
                       <td>${a.objective}</td>
-                      <td>${a.status}</td>
+                      <td class="status">${a.status}</td>
                     </tr>
                   `;
-                }).join('')}
+                }).join('') : '<tr><td colspan="6" style="text-align:center; padding: 40px;">No hay actividades programadas para este periodo.</td></tr>'}
               </tbody>
             </table>
-            <div class="footer">Este documento es una programación oficial generada por el sistema.</div>
-            <script>window.onload = function() { window.print(); setTimeout(() => { window.close(); }, 500); };</script>
+            <div class="footer">Este documento es un reporte oficial del sistema PromoterFlow.</div>
+            <script>
+              window.onload = function() {
+                window.print();
+                setTimeout(() => { window.close(); }, 500);
+              };
+            </script>
           </body>
         </html>
       `);
@@ -148,57 +162,68 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
     time: '08:00',
     community: '',
     objective: '',
-    attendeeName: '',
     type: ActivityType.COMMUNITY_VISIT,
     status: ActivityStatus.PENDING,
   });
 
   const submitRegistration = (e: React.FormEvent) => {
     e.preventDefault();
+    const pId = (userRole === UserRole.ADMIN && promoterId !== 'ALL') ? promoterId : (promoterId === 'ALL' ? promoters[0].id : promoterId);
     const newActivity: Activity = {
       ...formData,
       id: 'plan-' + Date.now(),
       date: targetDate,
-      promoterId: promoterId === 'ALL' ? 'p2' : promoterId,
+      promoterId: pId,
       location: currentLocation,
     } as Activity;
     onAddActivity(newActivity);
     setIsRegistering(false);
-    setFormData({ ...formData, community: '', objective: '', attendeeName: '' });
+    setFormData({ ...formData, community: '', objective: '' });
   };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sans">
       <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.xlsx,.xls" />
 
-      {/* Header con Controles de Navegación y Descarga */}
+      {/* Header con Controles y Menú de Descarga Fijo */}
       <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 flex flex-col lg:flex-row justify-between items-center gap-6">
         <div className="flex items-center gap-4">
-          <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
+          <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
             <button onClick={() => changeMonth(-1)} className="w-10 h-10 flex items-center justify-center hover:bg-white rounded-xl transition-all text-slate-500"><i className="fa-solid fa-chevron-left"></i></button>
             <h2 className="px-6 text-lg font-black text-slate-800 uppercase tracking-tighter w-48 text-center flex items-center justify-center">
               {currentMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
             </h2>
             <button onClick={() => changeMonth(1)} className="w-10 h-10 flex items-center justify-center hover:bg-white rounded-xl transition-all text-slate-500"><i className="fa-solid fa-chevron-right"></i></button>
           </div>
-          <button onClick={() => setCurrentMonth(new Date())} className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-5 py-2.5 rounded-xl border border-indigo-100 uppercase tracking-widest hover:bg-indigo-100 shadow-sm active:scale-95 transition-all">Hoy</button>
+          <button onClick={() => setCurrentMonth(new Date())} className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-5 py-2.5 rounded-xl border border-indigo-100 uppercase tracking-widest hover:bg-indigo-100 shadow-sm transition-all">Hoy</button>
         </div>
 
-        <div className="flex gap-3 w-full lg:w-auto">
-          <div className="relative group flex-1 lg:flex-none">
-            <button className="w-full bg-slate-900 text-white px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all">
-              <i className="fa-solid fa-file-pdf"></i> Descargar Programación
-            </button>
-            <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 hidden group-hover:block z-[100] animate-in slide-in-from-top-2">
-              <button onClick={() => handleExportProgram('diario')} className="w-full text-left p-3.5 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[10px] font-black text-slate-600 uppercase transition-colors">Programación Diaria</button>
-              <button onClick={() => handleExportProgram('semanal')} className="w-full text-left p-3.5 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[10px] font-black text-slate-600 uppercase transition-colors">Programación Semanal</button>
-              <button onClick={() => handleExportProgram('mensual')} className="w-full text-left p-3.5 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[10px] font-black text-slate-600 uppercase transition-colors">Programación Mensual</button>
+        <div className="flex gap-3 w-full lg:w-auto relative">
+          <button 
+            onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+            className="w-full bg-slate-900 text-white px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all"
+          >
+            <i className="fa-solid fa-file-pdf"></i> Descargar Plan / Agenda
+            <i className={`fa-solid fa-chevron-${showDownloadMenu ? 'up' : 'down'} ml-2`}></i>
+          </button>
+          
+          {showDownloadMenu && (
+            <div className="absolute top-full right-0 mt-2 w-full lg:w-64 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 p-2 z-[200] animate-in slide-in-from-top-2">
+              <button onClick={() => handleExportProgram('diario')} className="w-full text-left p-4 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[11px] font-black text-slate-600 uppercase transition-all flex items-center gap-3 border-b border-slate-50">
+                <i className="fa-solid fa-calendar-day"></i> Programación Diaria
+              </button>
+              <button onClick={() => handleExportProgram('semanal')} className="w-full text-left p-4 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[11px] font-black text-slate-600 uppercase transition-all flex items-center gap-3 border-b border-slate-50">
+                <i className="fa-solid fa-calendar-week"></i> Programación Semanal
+              </button>
+              <button onClick={() => handleExportProgram('mensual')} className="w-full text-left p-4 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[11px] font-black text-slate-600 uppercase transition-all flex items-center gap-3">
+                <i className="fa-solid fa-calendar"></i> Programación Mensual
+              </button>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Calendario Mensual */}
+      {/* Grid del Calendario Mensual */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
         <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50">
           {['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'].map(d => (
@@ -223,10 +248,10 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                     {day.day}
                   </span>
                   
-                  {/* Botón "+" específico para agregar actividad */}
                   <button 
                     onClick={(e) => openRegister(e, day.date)}
                     className="w-7 h-7 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90"
+                    title="Agregar actividad rápida"
                   >
                     <i className="fa-solid fa-plus text-xs"></i>
                   </button>
@@ -255,7 +280,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
         </div>
       </div>
 
-      {/* Modal: Vista de Actividades del Día */}
+      {/* Modal: Vista de Actividades del Día (Listado detallado) */}
       {isDayViewOpen && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -275,20 +300,20 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                     getActivitiesForDate(targetDate).map(act => {
                       const gestor = promoters.find(p => p.id === act.promoterId);
                       return (
-                        <div key={act.id} className="bg-slate-50 border border-slate-100 p-6 rounded-3xl flex items-center gap-6 group hover:border-indigo-100 hover:bg-white transition-all">
-                          <div className="text-center min-w-[60px] border-r border-slate-200 pr-6">
+                        <div key={act.id} className="bg-slate-50 border border-slate-100 p-6 rounded-3xl flex items-center gap-6 group hover:border-indigo-100 hover:bg-white transition-all shadow-sm">
+                          <div className="text-center min-w-[70px] border-r border-slate-200 pr-6">
                             <p className="text-xl font-black text-slate-800 leading-none">{act.time}</p>
                             <p className="text-[8px] font-black text-slate-400 uppercase mt-1">Hora</p>
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                              <img src={gestor?.photo} className="w-4 h-4 rounded-full" />
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{gestor?.name}</span>
+                              <img src={gestor?.photo} className="w-5 h-5 rounded-full object-cover border border-slate-200" />
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{gestor?.name}</span>
                             </div>
                             <h4 className="text-base font-black text-slate-800 group-hover:text-indigo-600 transition-colors leading-tight">{act.objective}</h4>
                             <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{act.community}</p>
                           </div>
-                          <button onClick={() => setSelectedActivity(act)} className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-all">
+                          <button onClick={() => { setSelectedActivity(act); setIsDayViewOpen(false); }} className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-all shadow-sm">
                             <i className="fa-solid fa-eye"></i>
                           </button>
                         </div>
@@ -321,7 +346,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-2xl font-black text-slate-800 tracking-tight">Nueva Programación</h3>
-                  <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest mt-1">Día asignado: {targetDate}</p>
+                  <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest mt-1">Día: {targetDate}</p>
                 </div>
                 <button onClick={() => setIsRegistering(false)} className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 shadow-sm border border-slate-100 transition-all">
                   <i className="fa-solid fa-xmark text-xl"></i>
@@ -344,17 +369,17 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
 
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Ubicación / Comunidad</label>
-                  <input required className="agenda-input" placeholder="Nombre de la comunidad o lugar..." value={formData.community} onChange={e => setFormData({...formData, community: e.target.value})} />
+                  <input required className="agenda-input" placeholder="Lugar de la visita..." value={formData.community} onChange={e => setFormData({...formData, community: e.target.value})} />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Objetivo de la Labor</label>
-                  <textarea required rows={3} className="agenda-input resize-none" placeholder="Descripción detallada de la meta..." value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} />
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Objetivo General</label>
+                  <textarea required rows={3} className="agenda-input resize-none" placeholder="¿Qué se espera lograr?" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} />
                 </div>
 
                 <div className="pt-4">
                   <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all">
-                    Guardar en Agenda Institucional
+                    Confirmar Programación
                   </button>
                 </div>
               </form>
@@ -363,38 +388,38 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
         </div>
       )}
 
-      {/* Detalle Individual de Actividad */}
+      {/* Detalle Individual */}
       {selectedActivity && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-md">
            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="p-10 space-y-8">
                  <div className="flex justify-between items-start">
                     <div>
-                       <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-full uppercase tracking-widest">{selectedActivity.type}</span>
+                       <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-full uppercase tracking-widest">{selectedActivity.type}</span>
                        <h3 className="text-4xl font-black text-slate-800 tracking-tighter mt-4">{selectedActivity.time}</h3>
                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{selectedActivity.date}</p>
                     </div>
-                    <button onClick={() => setSelectedActivity(null)} className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 transition-all border border-slate-100">
+                    <button onClick={() => setSelectedActivity(null)} className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 shadow-sm border border-slate-100 transition-all">
                        <i className="fa-solid fa-xmark text-xl"></i>
                     </button>
                  </div>
                  <div className="p-8 bg-slate-50 rounded-3xl border border-slate-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Objetivo</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Objetivo de la Labor</p>
                     <p className="text-lg font-bold text-slate-800 italic leading-relaxed">"{selectedActivity.objective}"</p>
                  </div>
-                 <button onClick={() => setSelectedActivity(null)} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest">Entendido</button>
+                 <button onClick={() => setSelectedActivity(null)} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all shadow-xl">Cerrar Detalle</button>
               </div>
            </div>
         </div>
       )}
 
-      {/* Loader Global */}
+      {/* Overlay Procesando */}
       {isProcessing && (
-        <div className="fixed inset-0 z-[2000] bg-slate-900/60 backdrop-blur-md flex flex-col items-center justify-center gap-4">
-          <div className="w-20 h-20 bg-white text-indigo-600 rounded-[2rem] flex items-center justify-center text-3xl shadow-2xl animate-bounce">
+        <div className="fixed inset-0 z-[2000] bg-slate-900/70 backdrop-blur-md flex flex-col items-center justify-center gap-4">
+          <div className="w-20 h-20 bg-white text-indigo-600 rounded-[2rem] flex items-center justify-center text-3xl shadow-[0_0_50px_rgba(79,70,229,0.3)] animate-pulse">
             <i className="fa-solid fa-file-export"></i>
           </div>
-          <p className="text-xs font-black text-white uppercase tracking-[0.3em] animate-pulse">Generando Documento Institucional...</p>
+          <p className="text-xs font-black text-white uppercase tracking-[0.3em]">Preparando Documento...</p>
         </div>
       )}
 
