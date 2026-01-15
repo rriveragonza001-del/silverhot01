@@ -35,6 +35,45 @@ const ReportingModule: React.FC<ReportingModuleProps> = ({ activities, promoter 
     }
   };
 
+  const handleExportPDF = () => {
+    if (!reportResult) return;
+    
+    // Crear una ventana oculta optimizada para impresión
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Informe Institucional - ${promoter.name}</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #1e293b; line-height: 1.6; }
+            h1 { color: #4f46e5; border-bottom: 2px solid #4f46e5; padding-bottom: 10px; }
+            h2 { color: #334155; margin-top: 30px; }
+            pre { white-space: pre-wrap; font-family: inherit; font-size: 14px; }
+            .header-info { margin-bottom: 40px; padding: 20px; background: #f8fafc; border-radius: 8px; }
+            @media print { .no-print { display: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="header-info">
+            <p><strong>Gestor:</strong> ${promoter.name}</p>
+            <p><strong>Periodo:</strong> ${selectedPeriod}</p>
+            <p><strong>Fecha de Generación:</strong> ${new Date().toLocaleString()}</p>
+          </div>
+          <div>${reportResult.replace(/\n/g, '<br/>')}</div>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(() => { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-10">
@@ -88,7 +127,6 @@ const ReportingModule: React.FC<ReportingModuleProps> = ({ activities, promoter 
         </button>
       </div>
 
-      {/* Mensaje de Error (Si ocurre) */}
       {errorMessage && (
         <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border-2 border-red-50 animate-in slide-in-from-top-4 duration-300">
           <div className="flex items-center gap-4 text-red-600 mb-6">
@@ -98,16 +136,9 @@ const ReportingModule: React.FC<ReportingModuleProps> = ({ activities, promoter 
           <div className="bg-red-50/50 p-8 rounded-2xl border border-red-100 text-red-900 font-mono text-sm leading-relaxed">
             {errorMessage}
           </div>
-          <button 
-            onClick={handleGenerateReport}
-            className="mt-6 text-indigo-600 font-black text-[10px] uppercase tracking-widest hover:underline"
-          >
-            Reintentar proceso ahora
-          </button>
         </div>
       )}
 
-      {/* Resultado Exitoso (Como en tu captura) */}
       {reportResult && (
         <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -116,10 +147,16 @@ const ReportingModule: React.FC<ReportingModuleProps> = ({ activities, promoter 
               Informe Generado Correctamente
             </h3>
             <div className="flex gap-3 w-full md:w-auto">
-              <button className="flex-1 md:flex-none px-6 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-100">
-                <i className="fa-solid fa-file-pdf"></i> PDF
+              <button 
+                onClick={handleExportPDF}
+                className="flex-1 md:flex-none px-6 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
+              >
+                <i className="fa-solid fa-file-pdf"></i> DESCARGAR PDF
               </button>
-              <button className="flex-1 md:flex-none px-6 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-100">
+              <button 
+                onClick={handleExportPDF}
+                className="flex-1 md:flex-none px-6 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-100"
+              >
                 <i className="fa-solid fa-print"></i> Imprimir
               </button>
             </div>

@@ -2,8 +2,6 @@
 import React, { useState } from 'react';
 import { Activity, ActivityStatus, ActivityType, ProblemType, Promoter, UserRole } from '../types';
 
-// Componentes de interfaz para replicar la captura de pantalla
-// Se marcó children como opcional para corregir errores de compilación de TypeScript en el entorno de ejecución
 const Label = ({ children }: { children?: React.ReactNode }) => (
   <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2 block px-1">
     {children}
@@ -35,6 +33,7 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filter, setFilter] = useState<ActivityStatus | 'ALL'>('ALL');
   const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
+  const [isEditingInline, setIsEditingInline] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Partial<Activity>>({
     date: new Date().toISOString().split('T')[0],
@@ -46,14 +45,13 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
     attendeePhone: '',
     proposals: '',
     problemsIdentified: ProblemType.OTRAS,
-    // Added initial type state
     type: ActivityType.COMMUNITY_VISIT,
     agreements: '',
     additionalObservations: '',
     driveLinks: '',
     referral: '',
     companions: '',
-    status: ActivityStatus.COMPLETED // 1. Estado al momento de ingresar
+    status: ActivityStatus.COMPLETED
   });
 
   const getPromoter = (id: string) => promoters.find(p => p.id === id);
@@ -69,13 +67,16 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
       } as Activity;
       onAddActivity(newActivity);
       setIsModalOpen(false);
-      // Reset form
       setFormData({
         ...formData,
         community: '', objective: '', attendeeName: '', attendeeRole: '', attendeePhone: '', 
         proposals: '', agreements: '', additionalObservations: '', driveLinks: '', referral: '', companions: ''
       });
     }
+  };
+
+  const handleInlineUpdate = (id: string, field: keyof Activity, value: string) => {
+    onUpdateActivity(id, { [field]: value });
   };
 
   const getStatusStyle = (status: ActivityStatus) => {
@@ -90,7 +91,6 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
 
   return (
     <div className="space-y-6">
-      {/* Header del Log */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 gap-6">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Registro de Actividades</h2>
@@ -117,18 +117,21 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
         </div>
       </div>
 
-      {/* Lista de Actividades */}
       <div className="space-y-6">
         {filtered.map(activity => {
           const isExpanded = expandedActivity === activity.id;
           const promoter = getPromoter(activity.promoterId);
+          const isOwnActivity = userRole === UserRole.FIELD_PROMOTER;
+          const editing = isEditingInline === activity.id;
           
           return (
             <div key={activity.id} className="bg-white rounded-[3rem] border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
-              {/* Resumen de la Tarjeta */}
               <div 
                 className="p-10 cursor-pointer flex items-start justify-between gap-6"
-                onClick={() => setExpandedActivity(isExpanded ? null : activity.id)}
+                onClick={() => {
+                  setExpandedActivity(isExpanded ? null : activity.id);
+                  if (isExpanded) setIsEditingInline(null);
+                }}
               >
                 <div className="flex-1 space-y-6">
                   <div className="flex flex-wrap items-center gap-3">
@@ -138,7 +141,6 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                     <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-4 py-1.5 rounded-full border border-slate-100">
                       {activity.date}
                     </span>
-                    {/* Display Activity Type badge */}
                     <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-4 py-1.5 rounded-full border border-emerald-100">
                       {activity.type}
                     </span>
@@ -157,16 +159,11 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                       </div>
                     </div>
                     
-                    <div className="h-10 w-px bg-slate-100 hidden md:block"></div>
-                    
                     <div>
                       <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Problemática</p>
                       <p className="text-sm font-black text-red-500 uppercase">{activity.problemsIdentified}</p>
                     </div>
 
-                    <div className="h-10 w-px bg-slate-100 hidden md:block"></div>
-
-                    {/* 2. Cambio de estado después de registrado (POST-REGISTRO) */}
                     <div>
                       <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Estado</p>
                       <select 
@@ -185,12 +182,21 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                 </div>
               </div>
 
-              {/* Detalle Expandido (UI coincidente con captura) */}
               {isExpanded && (
                 <div className="px-10 pb-12 pt-8 bg-slate-50/40 border-t border-slate-100 animate-in slide-in-from-top-2 duration-300">
+                  <div className="flex justify-end mb-6">
+                    {isOwnActivity && (
+                      <button 
+                        onClick={() => setIsEditingInline(editing ? null : activity.id)}
+                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${editing ? 'bg-emerald-600 text-white shadow-emerald-200' : 'bg-white text-indigo-600 border border-indigo-100 hover:bg-indigo-50 shadow-sm'}`}
+                      >
+                        <i className={`fa-solid ${editing ? 'fa-check-double' : 'fa-pen-to-square'} mr-2`}></i>
+                        {editing ? 'Finalizar Edición' : 'Agregar/Editar Información'}
+                      </button>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                    
-                    {/* Columna Principal (Izquierda) */}
                     <div className="lg:col-span-8 space-y-10">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
@@ -205,32 +211,67 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                       
                       <div>
                         <Label>Propuestas y Comentarios</Label>
-                        <TextBox value={activity.proposals} />
+                        {editing ? (
+                          <textarea 
+                            className="inline-edit-textarea" 
+                            value={activity.proposals} 
+                            onChange={(e) => handleInlineUpdate(activity.id, 'proposals', e.target.value)}
+                            placeholder="Ingrese comentarios o propuestas surgidas..."
+                          />
+                        ) : (
+                          <TextBox value={activity.proposals} />
+                        )}
                       </div>
 
                       <div>
                         <Label>Acuerdos Alcanzados</Label>
-                        <TextBox 
-                          value={activity.agreements} 
-                          color="text-indigo-900 font-bold" 
-                          bg="bg-indigo-50/50" 
-                          border="border-indigo-100" 
-                        />
+                        {editing ? (
+                          <textarea 
+                            className="inline-edit-textarea font-bold text-indigo-900 bg-indigo-50/30 border-indigo-100" 
+                            value={activity.agreements} 
+                            onChange={(e) => handleInlineUpdate(activity.id, 'agreements', e.target.value)}
+                            placeholder="Describa los compromisos pactados..."
+                          />
+                        ) : (
+                          <TextBox 
+                            value={activity.agreements} 
+                            color="text-indigo-900 font-bold" 
+                            bg="bg-indigo-50/50" 
+                            border="border-indigo-100" 
+                          />
+                        )}
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                          <Label>Referido a</Label>
-                          <DataBox value={activity.referral} />
+                          <Label>Referido a (Unidad)</Label>
+                          {editing ? (
+                            <input 
+                              className="inline-edit-input" 
+                              value={activity.referral} 
+                              onChange={(e) => handleInlineUpdate(activity.id, 'referral', e.target.value)}
+                              placeholder="Ej: Mantenimiento Vial"
+                            />
+                          ) : (
+                            <DataBox value={activity.referral} />
+                          )}
                         </div>
                         <div>
-                          <Label>Compañeros</Label>
-                          <DataBox value={activity.companions} />
+                          <Label>Compañeros de Equipo</Label>
+                          {editing ? (
+                            <input 
+                              className="inline-edit-input" 
+                              value={activity.companions} 
+                              onChange={(e) => handleInlineUpdate(activity.id, 'companions', e.target.value)}
+                              placeholder="Ej: Ana Maria, Jose Luis"
+                            />
+                          ) : (
+                            <DataBox value={activity.companions} />
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Columna Lateral (Derecha) */}
                     <div className="lg:col-span-4 space-y-10">
                       <div>
                         <Label>Observaciones Adicionales</Label>
@@ -238,29 +279,38 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                       </div>
 
                       <div className="space-y-4">
-                        <Label>Recursos Externos</Label>
-                        {activity.driveLinks ? (
-                          <a 
-                            href={activity.driveLinks} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="flex items-center gap-5 p-6 bg-emerald-50 text-emerald-700 rounded-3xl border border-emerald-100 hover:bg-emerald-100 transition-all group shadow-sm"
-                          >
-                            <i className="fa-brands fa-google-drive text-4xl"></i>
-                            <div>
-                              <p className="text-[10px] font-black uppercase tracking-widest">RECURSOS EXTERNOS</p>
-                              <p className="text-sm font-bold truncate group-hover:underline">Ver Documentos en Drive</p>
-                            </div>
-                          </a>
+                        <Label>Link de Evidencia (Drive)</Label>
+                        {editing ? (
+                          <input 
+                            className="inline-edit-input italic text-emerald-600" 
+                            value={activity.driveLinks} 
+                            onChange={(e) => handleInlineUpdate(activity.id, 'driveLinks', e.target.value)}
+                            placeholder="https://drive.google.com/..."
+                          />
                         ) : (
-                          <div className="p-6 bg-slate-100 text-slate-400 rounded-3xl border border-slate-200 text-center">
-                            <p className="text-xs font-bold uppercase">Sin Enlaces Adjuntos</p>
-                          </div>
+                          activity.driveLinks ? (
+                            <a 
+                              href={activity.driveLinks} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="flex items-center gap-5 p-6 bg-emerald-50 text-emerald-700 rounded-3xl border border-emerald-100 hover:bg-emerald-100 transition-all group shadow-sm"
+                            >
+                              <i className="fa-brands fa-google-drive text-4xl"></i>
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest">RECURSOS EXTERNOS</p>
+                                <p className="text-sm font-bold truncate group-hover:underline">Ver Documentos en Drive</p>
+                              </div>
+                            </a>
+                          ) : (
+                            <div className="p-6 bg-slate-100 text-slate-400 rounded-3xl border border-slate-200 text-center">
+                              <p className="text-xs font-bold uppercase">Sin Enlaces Adjuntos</p>
+                            </div>
+                          )
                         )}
                       </div>
 
                       <div className="space-y-4">
-                        <Label>Firma de Jefatura</Label>
+                        <Label>Validación de Jefatura</Label>
                         <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm min-h-[90px] flex flex-col justify-center">
                           {userRole === UserRole.ADMIN ? (
                             <textarea 
@@ -278,7 +328,6 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                         </div>
                       </div>
                     </div>
-
                   </div>
                 </div>
               )}
@@ -287,7 +336,6 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
         })}
       </div>
 
-      {/* Modal de Ingreso (Optimizado con todos los campos) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
           <div className="bg-white rounded-[4rem] shadow-2xl w-full max-w-5xl overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col">
@@ -302,7 +350,6 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
             </div>
             
             <form onSubmit={handleSubmit} className="p-14 space-y-12 overflow-y-auto no-scrollbar flex-1">
-              {/* Sección: Datos de Identificación */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div>
                   <Label>Fecha</Label>
@@ -333,7 +380,6 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                 </div>
               </div>
 
-              {/* Added row for Activity Type selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
                   <Label>Tipo de Actividad</Label>
@@ -346,7 +392,7 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
 
               <div>
                 <Label>Objetivo Principal de la Visita</Label>
-                <input required className="custom-input font-bold text-indigo-800" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} placeholder="Ej: Visita de seguimiento para reparación de drenajes" />
+                <input required className="custom-input font-bold text-indigo-800" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} placeholder="Ej: Visita de seguimiento" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -356,7 +402,7 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                 </div>
                 <div>
                   <Label>Cargo / Rol Comunitario</Label>
-                  <input className="custom-input" value={formData.attendeeRole} onChange={e => setFormData({...formData, attendeeRole: e.target.value})} placeholder="Ej: Presidente de ADESCO" />
+                  <input className="custom-input" value={formData.attendeeRole} onChange={e => setFormData({...formData, attendeeRole: e.target.value})} placeholder="Ej: Presidente ADESCO" />
                 </div>
                 <div>
                   <Label>Contacto Telefónico</Label>
@@ -382,7 +428,7 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
                 </div>
                 <div>
                   <Label>Compañeros de Equipo</Label>
-                  <input className="custom-input" value={formData.companions} onChange={e => setFormData({...formData, companions: e.target.value})} placeholder="Ej: Janira Alvarado, Dolores Hernandez" />
+                  <input className="custom-input" value={formData.companions} onChange={e => setFormData({...formData, companions: e.target.value})} placeholder="Ej: Ana Maria, Jose Luis" />
                 </div>
                 <div>
                   <Label>Link de Evidencia (Drive)</Label>
@@ -392,7 +438,7 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
 
               <div>
                 <Label>Observaciones Adicionales</Label>
-                <textarea rows={2} className="custom-input resize-none italic" value={formData.additionalObservations} onChange={e => setFormData({...formData, additionalObservations: e.target.value})} placeholder="Cualquier detalle relevante adicional..." />
+                <textarea rows={2} className="custom-input resize-none italic" value={formData.additionalObservations} onChange={e => setFormData({...formData, additionalObservations: e.target.value})} />
               </div>
 
               <div className="flex flex-col md:flex-row justify-center md:justify-end gap-6 pt-10 border-t border-slate-100 flex-shrink-0">
@@ -420,6 +466,29 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
           border-color: #4f46e5;
           background: white;
           box-shadow: 0 10px 30px -5px rgba(79, 70, 229, 0.12);
+        }
+        .inline-edit-textarea {
+          width: 100%;
+          background: #fff;
+          border: 2px solid #4f46e5;
+          border-radius: 1.5rem;
+          padding: 1.5rem;
+          font-size: 0.875rem;
+          color: #1e293b;
+          min-height: 110px;
+          outline: none;
+          box-shadow: 0 4px 12px -2px rgba(79, 70, 229, 0.1);
+        }
+        .inline-edit-input {
+          width: 100%;
+          background: #fff;
+          border: 2px solid #4f46e5;
+          border-radius: 1.25rem;
+          padding: 1rem 1.5rem;
+          font-size: 0.875rem;
+          color: #1e293b;
+          font-weight: 700;
+          outline: none;
         }
       `}</style>
     </div>

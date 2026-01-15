@@ -42,6 +42,38 @@ const AdminReportGenerator: React.FC<AdminReportGeneratorProps> = ({ activities,
     }
   };
 
+  const handleExportPDF = () => {
+    if (!report) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Reporte Estratégico Admin</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; color: #1e293b; }
+            h1 { color: #4f46e5; border-bottom: 2px solid #4f46e5; padding-bottom: 10px; }
+            .meta { margin-bottom: 30px; padding: 15px; background: #f1f5f9; border-radius: 8px; font-size: 13px; }
+            .content { white-space: pre-wrap; line-height: 1.6; }
+          </style>
+        </head>
+        <body>
+          <h1>Reporte Consolidado de Gestión</h1>
+          <div class="meta">
+            <p><strong>Filtros:</strong> Zona: ${filterZone}, Tipo: ${filterType}</p>
+            <p><strong>Fecha:</strong> ${new Date().toLocaleString()}</p>
+          </div>
+          <div class="content">${report.replace(/\n/g, '<br/>')}</div>
+          <script>
+            window.onload = function() { window.print(); setTimeout(() => { window.close(); }, 500); };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
@@ -111,8 +143,11 @@ const AdminReportGenerator: React.FC<AdminReportGeneratorProps> = ({ activities,
           <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100">
             <h3 className="text-xl font-bold text-slate-800">Resultado del Análisis</h3>
             <div className="flex gap-3">
-              <button className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-800 transition-all">
-                <i className="fa-solid fa-file-pdf"></i> Exportar PDF
+              <button 
+                onClick={handleExportPDF}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-xs font-black uppercase flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+              >
+                <i className="fa-solid fa-file-pdf"></i> EXPORTAR PDF
               </button>
             </div>
           </div>
