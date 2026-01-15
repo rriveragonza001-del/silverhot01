@@ -52,7 +52,7 @@ export interface Activity {
   id: string;
   promoterId: string;
   date: string;
-  time: string; // Columna 3
+  time: string; 
   community: string;
   objective: string;
   attendeeName: string;
@@ -62,15 +62,18 @@ export interface Activity {
   problemsIdentified: ProblemType | string;
   agreements: string;
   additionalObservations: string;
-  driveLinks: string; // Columna 13
+  driveLinks: string; 
   referral: string;
   companions: string;
   status: ActivityStatus;
   location: Location;
   type: ActivityType;
   verificationPhoto?: string;
+  galleryPhotos?: string[];
   adminComments?: string;
-  assignedBy?: string; // ID del administrador que asignó la tarea
+  assignedBy?: string;
+  cancellationReason?: string;
+  willReschedule?: boolean;
 }
 
 export interface Promoter {
@@ -88,6 +91,8 @@ export interface Promoter {
   lastConnection: string;
   zone?: string;
   role: UserRole;
+  googleDriveConnected?: boolean;
+  googleCalendarSynced?: boolean;
 }
 
 export interface Notification {

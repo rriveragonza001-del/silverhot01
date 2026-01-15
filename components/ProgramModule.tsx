@@ -65,6 +65,10 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
     setIsRegistering(true);
   };
 
+  const handleSyncCalendar = () => {
+    alert("Sincronizando su Agenda Institucional con Google Calendar movil...");
+  };
+
   const handleExportProgram = (type: 'diario' | 'semanal' | 'mensual') => {
     setIsProcessing(true);
     setShowDownloadMenu(false);
@@ -162,6 +166,9 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
     time: '08:00',
     community: '',
     objective: '',
+    attendeeName: '',
+    attendeeRole: '',
+    attendeePhone: '',
     type: ActivityType.COMMUNITY_VISIT,
     status: ActivityStatus.PENDING,
   });
@@ -178,14 +185,12 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
     } as Activity;
     onAddActivity(newActivity);
     setIsRegistering(false);
-    setFormData({ ...formData, community: '', objective: '' });
+    setFormData({ time: '08:00', community: '', objective: '', attendeeName: '', attendeeRole: '', attendeePhone: '', type: ActivityType.COMMUNITY_VISIT, status: ActivityStatus.PENDING });
   };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sans">
-      <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.xlsx,.xls" />
-
-      {/* Header con Controles y Menú de Descarga Fijo */}
+      {/* Header con Controles */}
       <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 flex flex-col lg:flex-row justify-between items-center gap-6">
         <div className="flex items-center gap-4">
           <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
@@ -196,6 +201,13 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
             <button onClick={() => changeMonth(1)} className="w-10 h-10 flex items-center justify-center hover:bg-white rounded-xl transition-all text-slate-500"><i className="fa-solid fa-chevron-right"></i></button>
           </div>
           <button onClick={() => setCurrentMonth(new Date())} className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-5 py-2.5 rounded-xl border border-indigo-100 uppercase tracking-widest hover:bg-indigo-100 shadow-sm transition-all">Hoy</button>
+          
+          <button 
+            onClick={handleSyncCalendar}
+            className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-5 py-2.5 rounded-xl border border-emerald-100 uppercase tracking-widest hover:bg-emerald-100 shadow-sm transition-all flex items-center gap-2"
+          >
+            <i className="fa-solid fa-rotate"></i> Sincronizar Google
+          </button>
         </div>
 
         <div className="flex gap-3 w-full lg:w-auto relative">
@@ -280,65 +292,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
         </div>
       </div>
 
-      {/* Modal: Vista de Actividades del Día (Listado detallado) */}
-      {isDayViewOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
-           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-              <div className="p-10 space-y-8 max-h-[85vh] overflow-y-auto no-scrollbar">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-3xl font-black text-slate-800 tracking-tight">Actividades Programadas</h3>
-                    <p className="text-xs font-black text-indigo-600 uppercase tracking-widest mt-2">{targetDate}</p>
-                  </div>
-                  <button onClick={() => setIsDayViewOpen(false)} className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 shadow-sm border border-slate-100 transition-all">
-                    <i className="fa-solid fa-xmark text-xl"></i>
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  {getActivitiesForDate(targetDate).length > 0 ? (
-                    getActivitiesForDate(targetDate).map(act => {
-                      const gestor = promoters.find(p => p.id === act.promoterId);
-                      return (
-                        <div key={act.id} className="bg-slate-50 border border-slate-100 p-6 rounded-3xl flex items-center gap-6 group hover:border-indigo-100 hover:bg-white transition-all shadow-sm">
-                          <div className="text-center min-w-[70px] border-r border-slate-200 pr-6">
-                            <p className="text-xl font-black text-slate-800 leading-none">{act.time}</p>
-                            <p className="text-[8px] font-black text-slate-400 uppercase mt-1">Hora</p>
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <img src={gestor?.photo} className="w-5 h-5 rounded-full object-cover border border-slate-200" />
-                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{gestor?.name}</span>
-                            </div>
-                            <h4 className="text-base font-black text-slate-800 group-hover:text-indigo-600 transition-colors leading-tight">{act.objective}</h4>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{act.community}</p>
-                          </div>
-                          <button onClick={() => { setSelectedActivity(act); setIsDayViewOpen(false); }} className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-all shadow-sm">
-                            <i className="fa-solid fa-eye"></i>
-                          </button>
-                        </div>
-                      )
-                    })
-                  ) : (
-                    <div className="text-center py-20 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200">
-                      <i className="fa-solid fa-calendar-xmark text-4xl text-slate-200 mb-4"></i>
-                      <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No hay actividades para este día</p>
-                    </div>
-                  )}
-                </div>
-
-                <button 
-                  onClick={() => { setIsDayViewOpen(false); setIsRegistering(true); }}
-                  className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"
-                >
-                  <i className="fa-solid fa-plus"></i> Registrar Nueva Actividad
-                </button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* Modal: Registro de Actividad */}
+      {/* Modal: Registro de Actividad (Mismos campos que Registro Principal) */}
       {isRegistering && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -377,6 +331,17 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                   <textarea required rows={3} className="agenda-input resize-none" placeholder="¿Qué se espera lograr?" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} />
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Nombre Contacto</label>
+                      <input className="agenda-input" value={formData.attendeeName} onChange={e => setFormData({...formData, attendeeName: e.target.value})} placeholder="Ej: Maria Perez" />
+                   </div>
+                   <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Teléfono</label>
+                      <input className="agenda-input" value={formData.attendeePhone} onChange={e => setFormData({...formData, attendeePhone: e.target.value})} placeholder="7777-2727" />
+                   </div>
+                </div>
+
                 <div className="pt-4">
                   <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all">
                     Confirmar Programación
@@ -388,32 +353,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
         </div>
       )}
 
-      {/* Detalle Individual */}
-      {selectedActivity && (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-md">
-           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
-              <div className="p-10 space-y-8">
-                 <div className="flex justify-between items-start">
-                    <div>
-                       <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-4 py-2 rounded-full uppercase tracking-widest">{selectedActivity.type}</span>
-                       <h3 className="text-4xl font-black text-slate-800 tracking-tighter mt-4">{selectedActivity.time}</h3>
-                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{selectedActivity.date}</p>
-                    </div>
-                    <button onClick={() => setSelectedActivity(null)} className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 shadow-sm border border-slate-100 transition-all">
-                       <i className="fa-solid fa-xmark text-xl"></i>
-                    </button>
-                 </div>
-                 <div className="p-8 bg-slate-50 rounded-3xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Objetivo de la Labor</p>
-                    <p className="text-lg font-bold text-slate-800 italic leading-relaxed">"{selectedActivity.objective}"</p>
-                 </div>
-                 <button onClick={() => setSelectedActivity(null)} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all shadow-xl">Cerrar Detalle</button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* Overlay Procesando */}
+      {/* Detalle y Modales de Loader */}
       {isProcessing && (
         <div className="fixed inset-0 z-[2000] bg-slate-900/70 backdrop-blur-md flex flex-col items-center justify-center gap-4">
           <div className="w-20 h-20 bg-white text-indigo-600 rounded-[2rem] flex items-center justify-center text-3xl shadow-[0_0_50px_rgba(79,70,229,0.3)] animate-pulse">
@@ -424,8 +364,6 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
       )}
 
       <style>{`
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .agenda-input {
           width: 100%;
           background: #f8fafc;
