@@ -10,6 +10,7 @@ interface ProgramModuleProps {
   currentLocation: Location;
   promoterId: string;
   userRole: UserRole;
+  onRefresh?: () => void;
 }
 
 const ProgramModule: React.FC<ProgramModuleProps> = ({ 
@@ -19,7 +20,8 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   onAddActivity,
   currentLocation, 
   promoterId,
-  userRole
+  userRole,
+  onRefresh
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
@@ -39,7 +41,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
     attendeePhone: '',
     type: ActivityType.COMMUNITY_VISIT,
     status: ActivityStatus.PENDING,
-    promoterId: promoterId === 'ALL' ? '' : promoterId
+    promoterId: (userRole === UserRole.ADMIN && promoterId === 'ALL') ? '' : promoterId
   });
 
   const calendarDays = useMemo(() => {
@@ -73,21 +75,19 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   const openRegister = (e: React.MouseEvent, date: string) => {
     e.stopPropagation();
     setTargetDate(date);
-    // Si el admin está viendo "ALL", el form debe resetear el promoterId
     setFormData(prev => ({
       ...prev,
-      promoterId: promoterId === 'ALL' ? '' : promoterId
+      promoterId: (userRole === UserRole.ADMIN && promoterId === 'ALL') ? '' : promoterId
     }));
     setIsRegistering(true);
   };
 
   const handleManualSync = () => {
     setIsSyncing(true);
-    // Simulamos un delay de red/sincronización para feedback visual
+    if (onRefresh) onRefresh();
     setTimeout(() => {
       setIsSyncing(false);
-      alert("Agenda Sincronizada: Se han cargado las actividades más recientes de todo el equipo gestor.");
-    }, 1200);
+    }, 1000);
   };
 
   const handleExportProgram = (type: 'diario' | 'semanal' | 'mensual') => {
@@ -186,7 +186,6 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   const submitRegistration = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Si es admin y no ha seleccionado a nadie, avisar
     if (userRole === UserRole.ADMIN && !formData.promoterId) {
       alert("Por favor selecciona un gestor para esta actividad.");
       return;
@@ -211,7 +210,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
       attendeePhone: '', 
       type: ActivityType.COMMUNITY_VISIT, 
       status: ActivityStatus.PENDING,
-      promoterId: promoterId === 'ALL' ? '' : promoterId
+      promoterId: (userRole === UserRole.ADMIN && promoterId === 'ALL') ? '' : promoterId
     });
   };
 
@@ -229,9 +228,9 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
           
           <button 
             onClick={handleManualSync}
-            className={`text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl border shadow-sm transition-all flex items-center gap-2 ${isSyncing ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-100 hover:bg-indigo-50'}`}
+            className={`text-xs font-black uppercase tracking-widest px-6 py-3.5 rounded-2xl border shadow-xl transition-all flex items-center gap-3 active:scale-95 ${isSyncing ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-100 hover:bg-indigo-50'}`}
           >
-            <i className={`fa-solid fa-arrows-rotate ${isSyncing ? 'animate-spin' : ''}`}></i>
+            <i className={`fa-solid fa-sync ${isSyncing ? 'animate-spin' : ''}`}></i>
             {isSyncing ? 'Sincronizando...' : 'Actualizar Actividades'}
           </button>
         </div>
@@ -294,18 +293,24 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                 </div>
 
                 <div className="space-y-1 pointer-events-none">
-                  {dateActivities.slice(0, 3).map(act => (
-                    <div
-                      key={act.id}
-                      className={`px-1.5 py-0.5 rounded text-[7px] md:text-[8px] font-black uppercase truncate border border-transparent ${
-                        act.status === ActivityStatus.COMPLETED 
-                        ? 'bg-emerald-50 text-emerald-700' 
-                        : 'bg-indigo-50 text-indigo-700'
-                      }`}
-                    >
-                      {act.time} {act.community}
-                    </div>
-                  ))}
+                  {dateActivities.slice(0, 3).map(act => {
+                    const g = promoters.find(p => p.id === act.promoterId);
+                    return (
+                      <div
+                        key={act.id}
+                        className={`px-1.5 py-0.5 rounded text-[7px] md:text-[8px] font-black uppercase truncate border border-transparent ${
+                          act.status === ActivityStatus.COMPLETED 
+                          ? 'bg-emerald-50 text-emerald-700' 
+                          : 'bg-indigo-50 text-indigo-700'
+                        }`}
+                      >
+                        {userRole === UserRole.ADMIN && promoterId === 'ALL' && (
+                          <span className="opacity-60 mr-1">[{g?.name.split(' ')[0].toUpperCase()}]</span>
+                        )}
+                        {act.time} {act.community}
+                      </div>
+                    )
+                  })}
                   {dateActivities.length > 3 && (
                     <div className="text-[7px] md:text-[8px] font-bold text-slate-300 px-1">+{dateActivities.length - 3}</div>
                   )}
@@ -397,9 +402,9 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                         value={formData.promoterId} 
                         onChange={e => setFormData({...formData, promoterId: e.target.value})}
                       >
-                         <option value="">-- Seleccionar Gestor --</option>
+                         <option value="">-- Seleccionar Gestor Destino --</option>
                          {promoters.filter(p => p.role === UserRole.FIELD_PROMOTER).map(p => (
-                            <option key={p.id} value={p.id}>{p.name} ({p.zone || 'Sin Zona'})</option>
+                            <option key={p.id} value={p.id}>{p.name} ({p.zone || 'Global'})</option>
                          ))}
                       </select>
                    </div>

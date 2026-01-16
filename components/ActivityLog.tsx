@@ -28,12 +28,14 @@ interface ActivityLogProps {
   onUpdateActivity: (id: string, updates: Partial<Activity>) => void;
   onAddActivity?: (activity: Activity) => void;
   currentUserId: string;
+  onRefresh?: () => void;
 }
 
-const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRole, onUpdateActivity, onAddActivity, currentUserId }) => {
+const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRole, onUpdateActivity, onAddActivity, currentUserId, onRefresh }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filter, setFilter] = useState<ActivityStatus | 'ALL'>('ALL');
   const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<Partial<Activity>>({
@@ -57,6 +59,12 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
 
   const getPromoter = (id: string) => promoters.find(p => p.id === id);
   const filtered = activities.filter(a => filter === 'ALL' || a.status === filter);
+
+  const handleRefresh = () => {
+    setIsSyncing(true);
+    if (onRefresh) onRefresh();
+    setTimeout(() => setIsSyncing(false), 800);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +130,12 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ activities, promoters, userRo
           <p className="text-sm text-slate-400 font-medium">Gestión de campo y control de estados</p>
         </div>
         <div className="flex flex-wrap gap-4 w-full md:w-auto">
+          <button 
+            onClick={handleRefresh}
+            className={`px-5 py-3 rounded-2xl border-2 transition-all flex items-center justify-center gap-2 ${isSyncing ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-400 border-slate-100 hover:border-indigo-100 hover:text-indigo-600'}`}
+          >
+            <i className={`fa-solid fa-arrows-rotate ${isSyncing ? 'animate-spin' : ''}`}></i>
+          </button>
           <select 
             value={filter} 
             onChange={e => setFilter(e.target.value as any)} 

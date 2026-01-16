@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MOCK_ACTIVITIES, MOCK_PROMOTERS } from './utils/mockData';
 import { Activity, Promoter, ActivityType, ActivityStatus, UserRole, Notification } from './types';
 import TrackingMap from './components/TrackingMap';
@@ -74,6 +74,19 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const refreshGlobalData = useCallback(() => {
+    try {
+      const savedActs = localStorage.getItem(STORAGE_KEYS.ACTIVITIES);
+      if (savedActs) setActivities(JSON.parse(savedActs));
+      
+      const savedProms = localStorage.getItem(STORAGE_KEYS.PROMOTERS);
+      if (savedProms) setPromoters(JSON.parse(savedProms));
+
+      const savedNotifs = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+      if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
+    } catch (e) { console.error("Error refreshing data", e); }
+  }, []);
+
   const handleAddUser = (user: Promoter) => setPromoters(prev => [user, ...prev]);
   const handleUpdateUser = (id: string, updates: Partial<Promoter>) => {
     setPromoters(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
@@ -89,6 +102,8 @@ const App: React.FC = () => {
   };
 
   const handleAddActivity = (activity: Activity) => {
+    // Si el que agrega es admin, el promoterId ya viene del componente.
+    // Si el que agrega es gestor, se le asigna su propio ID.
     const activityWithPromoter = {
       ...activity,
       promoterId: activity.promoterId || currentPromoterId
@@ -304,6 +319,7 @@ const App: React.FC = () => {
                   onUpdateActivity={handleUpdateActivity}
                   onAddActivity={handleAddActivity}
                   currentUserId={currentPromoterId}
+                  onRefresh={refreshGlobalData}
                 />
               </div>
             )}
@@ -320,6 +336,7 @@ const App: React.FC = () => {
                 onUpdateActivity={handleUpdateActivity}
                 onAddActivity={handleAddActivity}
                 currentUserId={currentPromoterId}
+                onRefresh={refreshGlobalData}
               />
             )}
             {activeView === 'reports' && <PerformanceReport activities={activities} promoters={promoters} />}
@@ -333,6 +350,7 @@ const App: React.FC = () => {
                 onAddActivity={handleAddActivity}
                 currentLocation={currentPromoter.lastLocation} 
                 userRole={userRole}
+                onRefresh={refreshGlobalData}
               />
             )}
             {activeView === 'final-report' && <ReportingModule activities={filteredActivities} promoter={currentPromoter} />}
