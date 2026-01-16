@@ -62,7 +62,6 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   };
 
   const getActivitiesForDate = (date: string) => {
-    // Si el Admin ve "ALL", no filtramos por promoterId aquí ya que el prop 'activities' ya viene filtrado desde App.tsx
     return activities.filter(a => a.date === date).sort((a, b) => a.time.localeCompare(b.time));
   };
 
@@ -74,6 +73,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   const openRegister = (e: React.MouseEvent, date: string) => {
     e.stopPropagation();
     setTargetDate(date);
+    // Reiniciar formulario con el ID del promotor actual si no es ALL
     setFormData(prev => ({
       ...prev,
       promoterId: (userRole === UserRole.ADMIN && promoterId === 'ALL') ? '' : promoterId
@@ -84,14 +84,18 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   const handleSync = () => {
     setIsSyncing(true);
     if (onRefresh) onRefresh();
-    setTimeout(() => setIsSyncing(false), 800);
+    setTimeout(() => {
+      setIsSyncing(false);
+    }, 1000);
   };
 
   const submitRegistration = (e: React.FormEvent) => {
     e.preventDefault();
     
     // Si el administrador está creando la actividad y no ha seleccionado a nadie, forzar selección
-    if (userRole === UserRole.ADMIN && !formData.promoterId) {
+    const finalPromoterId = formData.promoterId || promoterId;
+
+    if (userRole === UserRole.ADMIN && finalPromoterId === 'ALL') {
       alert("Por favor selecciona un gestor de destino para esta actividad.");
       return;
     }
@@ -100,14 +104,14 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
       ...formData,
       id: 'plan-' + Date.now(),
       date: targetDate,
-      promoterId: formData.promoterId || promoterId,
+      promoterId: finalPromoterId,
       location: currentLocation,
+      status: ActivityStatus.PENDING
     } as Activity;
 
     onAddActivity(newActivity);
     setIsRegistering(false);
     
-    // Reset form
     setFormData({ 
       time: '08:00', 
       community: '', 
@@ -135,15 +139,19 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
           
           <button 
             onClick={handleSync}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95 ${isSyncing ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-100 hover:bg-indigo-50'}`}
+            className={`flex items-center gap-3 px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl active:scale-95 ${isSyncing ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-100 hover:bg-indigo-50'}`}
           >
-            <i className={`fa-solid fa-arrows-rotate ${isSyncing ? 'animate-spin' : ''}`}></i>
-            {isSyncing ? 'Sincronizando...' : 'Sincronizar Datos'}
+            <i className={`fa-solid fa-sync ${isSyncing ? 'animate-spin' : ''}`}></i>
+            {isSyncing ? 'Sincronizando...' : 'Actualizar Agenda'}
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
-           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modo: {userRole === UserRole.ADMIN ? 'Auditoría Admin' : 'Gestión Campo'}</span>
+        <div className="flex items-center gap-3 px-6 py-2 bg-slate-50 rounded-2xl border border-slate-100">
+           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              {userRole === UserRole.ADMIN 
+                ? (promoterId === 'ALL' ? 'Vista: Equipo Completo' : `Vista: Gestor Específico`)
+                : 'Mi Agenda de Campo'}
+           </span>
         </div>
       </div>
 
@@ -210,7 +218,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
 
       {isDayViewOpen && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
-           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95">
+           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="p-8 md:p-10 space-y-8 max-h-[85vh] overflow-y-auto no-scrollbar">
                 <div className="flex justify-between items-start">
                   <div>
@@ -267,12 +275,12 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
 
       {isRegistering && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
-          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95">
+          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-300">
             <div className="p-8 md:p-10 space-y-8 max-h-[90vh] overflow-y-auto no-scrollbar">
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">Nueva Programación</h3>
-                  <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest mt-1">Día Seleccionado: {targetDate}</p>
+                  <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest mt-1">Día: {targetDate}</p>
                 </div>
                 <button onClick={() => setIsRegistering(false)} className="w-10 h-10 md:w-12 md:h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 shadow-sm border border-slate-100 transition-all">
                   <i className="fa-solid fa-xmark text-xl"></i>
@@ -282,14 +290,14 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
               <form onSubmit={submitRegistration} className="space-y-6">
                 {userRole === UserRole.ADMIN && (
                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest px-1">Asignar Gestor de Destino</label>
+                      <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest px-1">Gestor de Destino</label>
                       <select 
                         required 
                         className="agenda-input border-indigo-200 bg-indigo-50/30" 
                         value={formData.promoterId} 
                         onChange={e => setFormData({...formData, promoterId: e.target.value})}
                       >
-                         <option value="">-- Seleccionar Gestor Destino --</option>
+                         <option value="">-- Seleccionar Gestor --</option>
                          {promoters.filter(p => p.role === UserRole.FIELD_PROMOTER).map(p => (
                             <option key={p.id} value={p.id}>{p.name} ({p.zone || 'Global'})</option>
                          ))}
@@ -303,7 +311,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                     <input required type="time" className="agenda-input" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Tipo Actividad</label>
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Categoría</label>
                     <select className="agenda-input" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})}>
                       {Object.values(ActivityType).map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
@@ -311,19 +319,19 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Comunidad / Lugar</label>
-                  <input required className="agenda-input" placeholder="Ej: Urbanización Libertad" value={formData.community} onChange={e => setFormData({...formData, community: e.target.value})} />
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Ubicación / Comunidad</label>
+                  <input required className="agenda-input" placeholder="Ej: Calle Arce..." value={formData.community} onChange={e => setFormData({...formData, community: e.target.value})} />
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Objetivo General</label>
-                  <textarea required rows={3} className="agenda-input resize-none" placeholder="¿Qué se espera lograr con esta visita?" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} />
+                  <textarea required rows={3} className="agenda-input resize-none" placeholder="¿Qué se espera lograr con esta labor?" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Contacto Previsto</label>
-                      <input className="agenda-input" value={formData.attendeeName} onChange={e => setFormData({...formData, attendeeName: e.target.value})} placeholder="Ej: Juan Pérez" />
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Nombre Contacto</label>
+                      <input className="agenda-input" value={formData.attendeeName} onChange={e => setFormData({...formData, attendeeName: e.target.value})} placeholder="Ej: Maria Perez" />
                    </div>
                    <div className="space-y-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Teléfono</label>
@@ -333,7 +341,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
 
                 <div className="pt-4">
                   <button type="submit" className="w-full bg-slate-900 text-white py-4 md:py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all">
-                    Confirmar e Ingresar a Agenda
+                    Ingresar a Agenda Institucional
                   </button>
                 </div>
               </form>
@@ -344,7 +352,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
 
       {selectedActivity && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-md">
-           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95">
+           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="p-8 md:p-10 space-y-8">
                  <div className="flex justify-between items-start">
                     <div>

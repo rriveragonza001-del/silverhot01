@@ -58,13 +58,26 @@ const App: React.FC = () => {
   
   const [adminViewPromoterId, setAdminViewPromoterId] = useState<string>('ALL');
 
-  // Fix: Derived currentPromoter object from currentPromoterId to fix errors on lines 175, 177, 277, 297
   const currentPromoter = useMemo(() => 
     promoters.find(p => p.id === currentPromoterId), 
     [promoters, currentPromoterId]
   );
 
-  // Persistencia reactiva cada vez que cambian los datos
+  // Sincronización automática entre pestañas (Critical Fix)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.ACTIVITIES && e.newValue) {
+        setActivities(JSON.parse(e.newValue));
+      }
+      if (e.key === STORAGE_KEYS.PROMOTERS && e.newValue) {
+        setPromoters(JSON.parse(e.newValue));
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Guardar cambios en el almacenamiento local
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(promoters));
     localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(activities));
@@ -77,7 +90,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Función crítica para forzar sincronización manual desde los componentes
   const refreshGlobalData = useCallback(() => {
     try {
       const savedActs = localStorage.getItem(STORAGE_KEYS.ACTIVITIES);
@@ -87,7 +99,7 @@ const App: React.FC = () => {
       if (savedProms) setPromoters(JSON.parse(savedProms));
 
       setShowSaveSuccess(true);
-      setTimeout(() => setShowSaveSuccess(false), 1000);
+      setTimeout(() => setShowSaveSuccess(false), 1500);
     } catch (e) { console.error("Error al sincronizar datos locales", e); }
   }, []);
 
@@ -96,13 +108,14 @@ const App: React.FC = () => {
   };
 
   const handleAddActivity = (activity: Activity) => {
-    // Si la actividad ya trae un promoterId (asignada por admin), se respeta.
-    // Si no, se asigna al usuario actual.
     const newActivity = {
       ...activity,
       promoterId: activity.promoterId || currentPromoterId
     };
-    setActivities(prev => [newActivity, ...prev]);
+    const updatedActivities = [newActivity, ...activities];
+    setActivities(updatedActivities);
+    // Forzamos guardado inmediato para asegurar persistencia antes de cualquier navegación
+    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updatedActivities));
   };
 
   const filteredActivities = useMemo(() => {
@@ -193,8 +206,8 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
       {showSaveSuccess && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] bg-emerald-600 text-white px-6 py-2 rounded-full text-[10px] font-black shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in">
-          <i className="fa-solid fa-check-double"></i> SINCRONIZACIÓN EXITOSA
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[1000] bg-emerald-600 text-white px-8 py-3 rounded-full text-[11px] font-black shadow-[0_20px_40px_rgba(5,150,105,0.3)] flex items-center gap-3 animate-in fade-in zoom-in duration-300">
+          <i className="fa-solid fa-cloud-arrow-down text-lg"></i> DATOS SINCRONIZADOS CORRECTAMENTE
         </div>
       )}
 
@@ -223,14 +236,14 @@ const App: React.FC = () => {
             )}
             <div>
               <h1 className="text-lg font-black text-slate-800 tracking-tight">{navItems.find(i => i.id === activeView)?.label}</h1>
-              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Global Sync Active</p>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Sincronización en tiempo real</p>
             </div>
           </div>
           
           <div className="flex items-center gap-4">
             {userRole === UserRole.ADMIN && activeView === 'program' && (
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar Agenda:</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vista:</span>
                 <select 
                   value={adminViewPromoterId} 
                   onChange={e => setAdminViewPromoterId(e.target.value)}
@@ -245,10 +258,10 @@ const App: React.FC = () => {
             )}
             <button 
               onClick={refreshGlobalData}
-              className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all active:scale-90"
-              title="Sincronizar Datos"
+              className="px-5 py-2.5 rounded-xl bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-95"
+              title="Forzar Sincronización"
             >
-              <i className="fa-solid fa-arrows-rotate"></i>
+              <i className="fa-solid fa-sync"></i> Actualizar
             </button>
           </div>
         </header>
@@ -260,8 +273,8 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                   <StatCard icon="fa-users" color="text-indigo-600" bg="bg-indigo-50" label="Personal" value={promoters.length.toString()} />
                   <StatCard icon="fa-clipboard-list" color="text-blue-600" bg="bg-blue-50" label="Actividades" value={activities.length.toString()} />
-                  <StatCard icon="fa-calendar-check" color="text-emerald-600" bg="bg-emerald-50" label="Agenda" value={filteredActivities.length.toString()} />
-                  <StatCard icon="fa-satellite-dish" color="text-amber-600" bg="bg-amber-50" label="GPS" value="ON" />
+                  <StatCard icon="fa-calendar-check" color="text-emerald-600" bg="bg-emerald-50" label="En Agenda" value={filteredActivities.length.toString()} />
+                  <StatCard icon="fa-tower-broadcast" color="text-amber-600" bg="bg-amber-50" label="Red Sync" value="OK" />
                 </div>
                 <ActivityLog 
                   activities={filteredActivities} 
