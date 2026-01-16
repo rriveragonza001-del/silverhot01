@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Activity, ActivityType, ActivityStatus, Location, UserRole, Promoter } from '../types';
 
 interface ProgramModuleProps {
@@ -28,8 +28,6 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   const [isRegistering, setIsRegistering] = useState(false);
   const [isDayViewOpen, setIsDayViewOpen] = useState(false);
   const [targetDate, setTargetDate] = useState<string>('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   
   const [formData, setFormData] = useState<Partial<Activity>>({
@@ -64,6 +62,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   };
 
   const getActivitiesForDate = (date: string) => {
+    // Si el Admin ve "ALL", no filtramos por promoterId aquí ya que el prop 'activities' ya viene filtrado desde App.tsx
     return activities.filter(a => a.date === date).sort((a, b) => a.time.localeCompare(b.time));
   };
 
@@ -82,112 +81,18 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
     setIsRegistering(true);
   };
 
-  const handleManualSync = () => {
+  const handleSync = () => {
     setIsSyncing(true);
     if (onRefresh) onRefresh();
-    setTimeout(() => {
-      setIsSyncing(false);
-    }, 1000);
-  };
-
-  const handleExportProgram = (type: 'diario' | 'semanal' | 'mensual') => {
-    setIsProcessing(true);
-    setShowDownloadMenu(false);
-    
-    setTimeout(() => {
-      let filtered = [...activities];
-      const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
-      
-      if (type === 'diario') {
-        filtered = activities.filter(a => a.date === todayStr);
-      } else if (type === 'semanal') {
-        const weekStart = new Date();
-        weekStart.setDate(today.getDate() - 7);
-        filtered = activities.filter(a => new Date(a.date) >= weekStart);
-      }
-
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        alert("Por favor habilite las ventanas emergentes para descargar el documento.");
-        setIsProcessing(false);
-        return;
-      }
-
-      const title = `PROGRAMACIÓN ${type.toUpperCase()} - ${promoterId === 'ALL' ? 'EQUIPO COMPLETO' : 'GESTOR INDIVIDUAL'}`;
-      
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>${title}</title>
-            <style>
-              body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #1e293b; }
-              .header { text-align: center; border-bottom: 4px solid #4f46e5; padding-bottom: 20px; margin-bottom: 30px; }
-              .header h1 { font-size: 24px; margin: 0; color: #1e293b; }
-              .meta { display: flex; justify-content: space-between; font-size: 12px; margin-top: 10px; color: #64748b; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; }
-              th { background: #f8fafc; color: #475569; padding: 12px; text-align: left; border: 1px solid #e2e8f0; font-size: 11px; text-transform: uppercase; }
-              td { padding: 12px; border: 1px solid #e2e8f0; font-size: 12px; }
-              .status { font-weight: bold; color: #4f46e5; }
-              .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 10px; text-align: center; color: #94a3b8; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>${title}</h1>
-              <div class="meta">
-                <span>PromoterFlow Gestión Institucional</span>
-                <span>Generado: ${new Date().toLocaleString()}</span>
-              </div>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Hora</th>
-                  <th>Gestor</th>
-                  <th>Comunidad</th>
-                  <th>Objetivo</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${filtered.length > 0 ? filtered.map(a => {
-                  const gestor = promoters.find(p => p.id === a.promoterId)?.name || '---';
-                  return `
-                    <tr>
-                      <td>${a.date}</td>
-                      <td><b>${a.time}</b></td>
-                      <td>${gestor}</td>
-                      <td>${a.community}</td>
-                      <td>${a.objective}</td>
-                      <td class="status">${a.status}</td>
-                    </tr>
-                  `;
-                }).join('') : '<tr><td colspan="6" style="text-align:center; padding: 40px;">No hay actividades programadas para este periodo.</td></tr>'}
-              </tbody>
-            </table>
-            <div class="footer">Este documento es un reporte oficial del sistema PromoterFlow.</div>
-            <script>
-              window.onload = function() {
-                window.print();
-                setTimeout(() => { window.close(); }, 500);
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      setIsProcessing(false);
-    }, 1000);
+    setTimeout(() => setIsSyncing(false), 800);
   };
 
   const submitRegistration = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Si el administrador está creando la actividad y no ha seleccionado a nadie, forzar selección
     if (userRole === UserRole.ADMIN && !formData.promoterId) {
-      alert("Por favor selecciona un gestor para esta actividad.");
+      alert("Por favor selecciona un gestor de destino para esta actividad.");
       return;
     }
 
@@ -195,12 +100,14 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
       ...formData,
       id: 'plan-' + Date.now(),
       date: targetDate,
-      promoterId: formData.promoterId || promoters[0].id,
+      promoterId: formData.promoterId || promoterId,
       location: currentLocation,
     } as Activity;
 
     onAddActivity(newActivity);
     setIsRegistering(false);
+    
+    // Reset form
     setFormData({ 
       time: '08:00', 
       community: '', 
@@ -227,36 +134,16 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
           </div>
           
           <button 
-            onClick={handleManualSync}
-            className={`text-xs font-black uppercase tracking-widest px-6 py-3.5 rounded-2xl border shadow-xl transition-all flex items-center gap-3 active:scale-95 ${isSyncing ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-100 hover:bg-indigo-50'}`}
+            onClick={handleSync}
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95 ${isSyncing ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-100 hover:bg-indigo-50'}`}
           >
-            <i className={`fa-solid fa-sync ${isSyncing ? 'animate-spin' : ''}`}></i>
-            {isSyncing ? 'Sincronizando...' : 'Actualizar Actividades'}
+            <i className={`fa-solid fa-arrows-rotate ${isSyncing ? 'animate-spin' : ''}`}></i>
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar Datos'}
           </button>
         </div>
 
-        <div className="flex gap-3 w-full lg:w-auto relative">
-          <button 
-            onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-            className="w-full bg-slate-900 text-white px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all"
-          >
-            <i className="fa-solid fa-file-pdf"></i> Descargar Plan / Agenda
-            <i className={`fa-solid fa-chevron-${showDownloadMenu ? 'up' : 'down'} ml-2`}></i>
-          </button>
-          
-          {showDownloadMenu && (
-            <div className="absolute top-full right-0 mt-2 w-full lg:w-64 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 p-2 z-[200] animate-in slide-in-from-top-2">
-              <button onClick={() => handleExportProgram('diario')} className="w-full text-left p-4 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[11px] font-black text-slate-600 uppercase transition-all flex items-center gap-3 border-b border-slate-50">
-                <i className="fa-solid fa-calendar-day"></i> Programación Diaria
-              </button>
-              <button onClick={() => handleExportProgram('semanal')} className="w-full text-left p-4 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[11px] font-black text-slate-600 uppercase transition-all flex items-center gap-3 border-b border-slate-50">
-                <i className="fa-solid fa-calendar-week"></i> Programación Semanal
-              </button>
-              <button onClick={() => handleExportProgram('mensual')} className="w-full text-left p-4 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[11px] font-black text-slate-600 uppercase transition-all flex items-center gap-3">
-                <i className="fa-solid fa-calendar"></i> Programación Mensual
-              </button>
-            </div>
-          )}
+        <div className="flex items-center gap-3">
+           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modo: {userRole === UserRole.ADMIN ? 'Auditoría Admin' : 'Gestión Campo'}</span>
         </div>
       </div>
 
@@ -323,7 +210,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
 
       {isDayViewOpen && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
-           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95">
               <div className="p-8 md:p-10 space-y-8 max-h-[85vh] overflow-y-auto no-scrollbar">
                 <div className="flex justify-between items-start">
                   <div>
@@ -380,12 +267,12 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
 
       {isRegistering && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
-          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-300">
+          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95">
             <div className="p-8 md:p-10 space-y-8 max-h-[90vh] overflow-y-auto no-scrollbar">
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">Nueva Programación</h3>
-                  <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest mt-1">Día: {targetDate}</p>
+                  <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest mt-1">Día Seleccionado: {targetDate}</p>
                 </div>
                 <button onClick={() => setIsRegistering(false)} className="w-10 h-10 md:w-12 md:h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 shadow-sm border border-slate-100 transition-all">
                   <i className="fa-solid fa-xmark text-xl"></i>
@@ -395,7 +282,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
               <form onSubmit={submitRegistration} className="space-y-6">
                 {userRole === UserRole.ADMIN && (
                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest px-1">Asignar a Gestor</label>
+                      <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest px-1">Asignar Gestor de Destino</label>
                       <select 
                         required 
                         className="agenda-input border-indigo-200 bg-indigo-50/30" 
@@ -416,7 +303,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                     <input required type="time" className="agenda-input" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Categoría</label>
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Tipo Actividad</label>
                     <select className="agenda-input" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})}>
                       {Object.values(ActivityType).map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
@@ -424,19 +311,19 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Ubicación / Comunidad</label>
-                  <input required className="agenda-input" placeholder="Lugar de la visita..." value={formData.community} onChange={e => setFormData({...formData, community: e.target.value})} />
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Comunidad / Lugar</label>
+                  <input required className="agenda-input" placeholder="Ej: Urbanización Libertad" value={formData.community} onChange={e => setFormData({...formData, community: e.target.value})} />
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Objetivo General</label>
-                  <textarea required rows={3} className="agenda-input resize-none" placeholder="¿Qué se espera lograr?" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} />
+                  <textarea required rows={3} className="agenda-input resize-none" placeholder="¿Qué se espera lograr con esta visita?" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Nombre Contacto</label>
-                      <input className="agenda-input" value={formData.attendeeName} onChange={e => setFormData({...formData, attendeeName: e.target.value})} placeholder="Ej: Maria Perez" />
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Contacto Previsto</label>
+                      <input className="agenda-input" value={formData.attendeeName} onChange={e => setFormData({...formData, attendeeName: e.target.value})} placeholder="Ej: Juan Pérez" />
                    </div>
                    <div className="space-y-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Teléfono</label>
@@ -446,7 +333,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
 
                 <div className="pt-4">
                   <button type="submit" className="w-full bg-slate-900 text-white py-4 md:py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all">
-                    Confirmar Programación
+                    Confirmar e Ingresar a Agenda
                   </button>
                 </div>
               </form>
@@ -457,7 +344,7 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
 
       {selectedActivity && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-md">
-           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
+           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95">
               <div className="p-8 md:p-10 space-y-8">
                  <div className="flex justify-between items-start">
                     <div>
@@ -470,21 +357,12 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                     </button>
                  </div>
                  <div className="p-6 md:p-8 bg-slate-50 rounded-3xl border border-slate-100">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Objetivo de la Labor</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Objetivo</p>
                     <p className="text-base md:text-lg font-bold text-slate-800 italic leading-relaxed">"{selectedActivity.objective}"</p>
                  </div>
                  <button onClick={() => setSelectedActivity(null)} className="w-full bg-slate-900 text-white py-4 md:py-5 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all shadow-xl">Cerrar Detalle</button>
               </div>
            </div>
-        </div>
-      )}
-
-      {isProcessing && (
-        <div className="fixed inset-0 z-[2000] bg-slate-900/70 backdrop-blur-md flex flex-col items-center justify-center gap-4">
-          <div className="w-16 h-16 md:w-20 md:h-20 bg-white text-indigo-600 rounded-[2rem] flex items-center justify-center text-3xl shadow-[0_0_50px_rgba(79,70,229,0.3)] animate-pulse">
-            <i className="fa-solid fa-file-export"></i>
-          </div>
-          <p className="text-[10px] md:text-xs font-black text-white uppercase tracking-[0.3em]">Preparando Documento...</p>
         </div>
       )}
 
