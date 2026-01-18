@@ -63,7 +63,6 @@ const App: React.FC = () => {
     [promoters, currentPromoterId]
   );
 
-  // Sincronización automática entre pestañas (Critical Fix)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.ACTIVITIES && e.newValue) {
@@ -77,7 +76,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Guardar cambios en el almacenamiento local
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(promoters));
     localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(activities));
@@ -114,8 +112,20 @@ const App: React.FC = () => {
     };
     const updatedActivities = [newActivity, ...activities];
     setActivities(updatedActivities);
-    // Forzamos guardado inmediato para asegurar persistencia antes de cualquier navegación
     localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updatedActivities));
+  };
+
+  const handleBulkAddActivities = (newActivities: Activity[]) => {
+    setActivities(prev => {
+      // Evitar duplicados por ID si es que vienen de la misma fuente
+      const existingIds = new Set(prev.map(a => a.id));
+      const uniqueNew = newActivities.filter(a => !existingIds.has(a.id));
+      const updated = [...uniqueNew, ...prev];
+      localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updated));
+      return updated;
+    });
+    setShowSaveSuccess(true);
+    setTimeout(() => setShowSaveSuccess(false), 2000);
   };
 
   const filteredActivities = useMemo(() => {
@@ -258,7 +268,7 @@ const App: React.FC = () => {
             )}
             <button 
               onClick={refreshGlobalData}
-              className="px-5 py-2.5 rounded-xl bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-95"
+              className="px-5 py-2.5 rounded-xl bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90"
               title="Forzar Sincronización"
             >
               <i className="fa-solid fa-sync"></i> Actualizar
@@ -296,7 +306,7 @@ const App: React.FC = () => {
                 currentLocation={currentPromoter?.lastLocation || { lat: 13.6929, lng: -89.2182 }} 
                 userRole={userRole}
                 onRefresh={refreshGlobalData}
-                onProgramLoaded={() => {}}
+                onProgramLoaded={handleBulkAddActivities}
               />
             )}
             {activeView === 'activities' && (

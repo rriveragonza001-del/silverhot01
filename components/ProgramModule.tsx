@@ -1,6 +1,9 @@
 
 import React, { useState, useMemo, useRef } from 'react';
+// Fix: Removed 'Type' from local types import
 import { Activity, ActivityType, ActivityStatus, Location, UserRole, Promoter } from '../types';
+// Fix: Imported 'Type' from @google/genai
+import { GoogleGenAI, Type } from '@google/genai';
 
 interface ProgramModuleProps {
   activities: Activity[];
@@ -29,6 +32,10 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   const [isDayViewOpen, setIsDayViewOpen] = useState(false);
   const [targetDate, setTargetDate] = useState<string>('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [extractedData, setExtractedData] = useState<Activity[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState<Partial<Activity>>({
     time: '08:00',
@@ -73,7 +80,6 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
   const openRegister = (e: React.MouseEvent, date: string) => {
     e.stopPropagation();
     setTargetDate(date);
-    // Reiniciar formulario con el ID del promotor actual si no es ALL
     setFormData(prev => ({
       ...prev,
       promoterId: (userRole === UserRole.ADMIN && promoterId === 'ALL') ? '' : promoterId
@@ -89,17 +95,103 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
     }, 1000);
   };
 
+  // Función para leer archivo y enviarlo a Gemini
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportLoading(true);
+    setExtractedData([]);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = (reader.result as string).split(',')[1];
+        
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const response = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: {
+            parts: [
+              {
+                inlineData: {
+                  data: base64Data,
+                  mimeType: file.type || 'application/pdf'
+                }
+              },
+              {
+                text: `Analiza este documento PDF/Imagen de una agenda de promotores. 
+                Extrae cada fila de la tabla de actividades y conviértela en un JSON con este formato exacto:
+                Array de objetos { id, date, time, community, objective, attendeeName, attendeeRole, attendeePhone, type, status, promoterId }.
+                Instrucciones críticas:
+                - "date" debe ser YYYY-MM-DD.
+                - "type" debe mapear a: ${Object.values(ActivityType).join(', ')}.
+                - "status" debe ser siempre 'Pendiente' para nuevas cargas.
+                - "promoterId": Si el documento menciona un gestor, busca su nombre y asume un ID. Si no lo sabes, deja el campo vacío.
+                - No incluyas texto extra, solo el JSON puro.`
+              }
+            ]
+          },
+          config: {
+            responseMimeType: "application/json",
+            // Fix: Updated responseSchema to use Type enum
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  date: { type: Type.STRING },
+                  time: { type: Type.STRING },
+                  community: { type: Type.STRING },
+                  objective: { type: Type.STRING },
+                  attendeeName: { type: Type.STRING },
+                  attendeeRole: { type: Type.STRING },
+                  attendeePhone: { type: Type.STRING },
+                  type: { type: Type.STRING },
+                  status: { type: Type.STRING },
+                  promoterId: { type: Type.STRING }
+                }
+              }
+            }
+          }
+        });
+
+        const data = JSON.parse(response.text || '[]');
+        
+        // Mapear IDs si es posible o asignar el actual
+        const mappedData = data.map((a: any) => ({
+          ...a,
+          id: 'import-' + Math.random().toString(36).substr(2, 9),
+          location: currentLocation,
+          // Si el admin está importando, intenta ver si el promoterId detectado existe, sino usa el actual
+          promoterId: a.promoterId || (userRole === UserRole.ADMIN ? '' : promoterId)
+        }));
+
+        setExtractedData(mappedData);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Error importando:", error);
+      alert("Hubo un error procesando el archivo. Intente de nuevo.");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const confirmImport = () => {
+    onProgramLoaded(extractedData);
+    setIsImporting(false);
+    setExtractedData([]);
+    alert(`Se han importado ${extractedData.length} actividades exitosamente.`);
+  };
+
   const submitRegistration = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Si el administrador está creando la actividad y no ha seleccionado a nadie, forzar selección
     const finalPromoterId = formData.promoterId || promoterId;
-
     if (userRole === UserRole.ADMIN && finalPromoterId === 'ALL') {
       alert("Por favor selecciona un gestor de destino para esta actividad.");
       return;
     }
-
     const newActivity: Activity = {
       ...formData,
       id: 'plan-' + Date.now(),
@@ -108,10 +200,8 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
       location: currentLocation,
       status: ActivityStatus.PENDING
     } as Activity;
-
     onAddActivity(newActivity);
     setIsRegistering(false);
-    
     setFormData({ 
       time: '08:00', 
       community: '', 
@@ -146,12 +236,13 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
           </button>
         </div>
 
-        <div className="flex items-center gap-3 px-6 py-2 bg-slate-50 rounded-2xl border border-slate-100">
-           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              {userRole === UserRole.ADMIN 
-                ? (promoterId === 'ALL' ? 'Vista: Equipo Completo' : `Vista: Gestor Específico`)
-                : 'Mi Agenda de Campo'}
-           </span>
+        <div className="flex gap-4 w-full lg:w-auto">
+           <button 
+             onClick={() => setIsImporting(true)}
+             className="flex-1 bg-slate-900 text-white px-8 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl hover:bg-slate-800 active:scale-95 transition-all"
+           >
+             <i className="fa-solid fa-file-import"></i> Cargar / Importar desde PDF
+           </button>
         </div>
       </div>
 
@@ -164,10 +255,8 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
         <div className="grid grid-cols-7 auto-rows-[100px] md:auto-rows-[160px]">
           {calendarDays.map((day, idx) => {
             if (!day) return <div key={`empty-${idx}`} className="border-r border-b border-slate-50 bg-slate-50/10"></div>;
-            
             const dateActivities = getActivitiesForDate(day.date);
             const isToday = day.date === new Date().toISOString().split('T')[0];
-
             return (
               <div 
                 key={day.date} 
@@ -178,7 +267,6 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                   <span className={`text-xs md:text-base font-black w-6 h-6 md:w-8 md:h-8 flex items-center justify-center rounded-full transition-colors ${isToday ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 group-hover:text-indigo-600'}`}>
                     {day.day}
                   </span>
-                  
                   <button 
                     onClick={(e) => openRegister(e, day.date)}
                     className="pointer-events-auto w-6 h-6 md:w-7 md:h-7 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90"
@@ -186,7 +274,6 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                     <i className="fa-solid fa-plus text-[10px]"></i>
                   </button>
                 </div>
-
                 <div className="space-y-1 pointer-events-none">
                   {dateActivities.slice(0, 3).map(act => {
                     const g = promoters.find(p => p.id === act.promoterId);
@@ -216,6 +303,65 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
         </div>
       </div>
 
+      {isImporting && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
+           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+              <div className="p-10 space-y-8 max-h-[85vh] overflow-y-auto no-scrollbar">
+                 <div className="flex justify-between items-start">
+                    <div>
+                       <h3 className="text-2xl font-black text-slate-800 tracking-tight">Carga Institucional de Agenda</h3>
+                       <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-2">Sincronización mediante documento PDF o Imagen</p>
+                    </div>
+                    <button onClick={() => setIsImporting(false)} className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 shadow-sm border border-slate-100 transition-all">
+                       <i className="fa-solid fa-xmark text-xl"></i>
+                    </button>
+                 </div>
+
+                 {extractedData.length === 0 ? (
+                    <div className="space-y-8 py-10">
+                       <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] p-12 text-center group hover:border-indigo-300 transition-all cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                          <div className={`w-20 h-20 mx-auto rounded-3xl flex items-center justify-center text-3xl mb-6 transition-all ${importLoading ? 'bg-indigo-600 text-white animate-pulse' : 'bg-white text-indigo-600 shadow-lg group-hover:scale-110'}`}>
+                             {importLoading ? <i className="fa-solid fa-spinner animate-spin"></i> : <i className="fa-solid fa-file-pdf"></i>}
+                          </div>
+                          <h4 className="font-black text-slate-800 text-lg">{importLoading ? 'Procesando Documento...' : 'Seleccionar PDF o Imagen'}</h4>
+                          <p className="text-xs text-slate-400 mt-2 font-medium px-8">{importLoading ? 'Gemini está leyendo y estructurando los datos de la tabla...' : 'Sube la agenda que fue exportada previamente para restaurar los registros.'}</p>
+                          <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,image/*" onChange={handleFileUpload} />
+                       </div>
+                    </div>
+                 ) : (
+                    <div className="space-y-6">
+                       <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-2xl flex items-center gap-4">
+                          <i className="fa-solid fa-circle-check text-emerald-500 text-2xl"></i>
+                          <div>
+                             <p className="text-sm font-black text-emerald-800 uppercase tracking-tight">Detección Finalizada</p>
+                             <p className="text-xs text-emerald-600 font-medium">Se han identificado {extractedData.length} actividades programadas.</p>
+                          </div>
+                       </div>
+                       
+                       <div className="space-y-3 max-h-60 overflow-y-auto pr-2 no-scrollbar">
+                          {extractedData.map((act, i) => (
+                             <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center">
+                                <div>
+                                   <p className="text-[10px] font-black text-slate-800 uppercase">{act.date} | {act.time}</p>
+                                   <p className="text-[9px] text-slate-400 font-bold">{act.community}</p>
+                                </div>
+                                <span className="text-[8px] font-black bg-white px-3 py-1 rounded-full border border-slate-100 uppercase">{act.type}</span>
+                             </div>
+                          ))}
+                       </div>
+
+                       <div className="flex gap-4 pt-4">
+                          <button onClick={() => setExtractedData([])} className="flex-1 py-4 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-slate-800 transition-colors">Volver a intentar</button>
+                          <button onClick={confirmImport} className="flex-[2] bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all">Confirmar e Importar</button>
+                       </div>
+                    </div>
+                 )}
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Render Day View and Registration Modals as before... */}
       {isDayViewOpen && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md">
            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -229,7 +375,6 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                     <i className="fa-solid fa-xmark text-xl"></i>
                   </button>
                 </div>
-
                 <div className="space-y-4">
                   {getActivitiesForDate(targetDate).length > 0 ? (
                     getActivitiesForDate(targetDate).map(act => {
@@ -261,7 +406,6 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                     </div>
                   )}
                 </div>
-
                 <button 
                   onClick={() => { setIsDayViewOpen(false); setIsRegistering(true); }}
                   className="w-full bg-indigo-600 text-white py-4 md:py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"
@@ -286,17 +430,11 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                   <i className="fa-solid fa-xmark text-xl"></i>
                 </button>
               </div>
-
               <form onSubmit={submitRegistration} className="space-y-6">
                 {userRole === UserRole.ADMIN && (
                    <div className="space-y-1">
                       <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest px-1">Gestor de Destino</label>
-                      <select 
-                        required 
-                        className="agenda-input border-indigo-200 bg-indigo-50/30" 
-                        value={formData.promoterId} 
-                        onChange={e => setFormData({...formData, promoterId: e.target.value})}
-                      >
+                      <select required className="agenda-input border-indigo-200 bg-indigo-50/30" value={formData.promoterId} onChange={e => setFormData({...formData, promoterId: e.target.value})}>
                          <option value="">-- Seleccionar Gestor --</option>
                          {promoters.filter(p => p.role === UserRole.FIELD_PROMOTER).map(p => (
                             <option key={p.id} value={p.id}>{p.name} ({p.zone || 'Global'})</option>
@@ -304,7 +442,6 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                       </select>
                    </div>
                 )}
-
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Hora Programada</label>
@@ -317,17 +454,14 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                     </select>
                   </div>
                 </div>
-
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Ubicación / Comunidad</label>
-                  <input required className="agenda-input" placeholder="Ej: Calle Arce..." value={formData.community} onChange={e => setFormData({...formData, community: e.target.value})} />
+                  <input required className="agenda-input" placeholder="Ej: Calle Arce..." value={formData.community} onChange={setFormData as any} />
                 </div>
-
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Objetivo General</label>
                   <textarea required rows={3} className="agenda-input resize-none" placeholder="¿Qué se espera lograr con esta labor?" value={formData.objective} onChange={e => setFormData({...formData, objective: e.target.value})} />
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Nombre Contacto</label>
@@ -338,11 +472,8 @@ const ProgramModule: React.FC<ProgramModuleProps> = ({
                       <input className="agenda-input" value={formData.attendeePhone} onChange={e => setFormData({...formData, attendeePhone: e.target.value})} placeholder="7777-2727" />
                    </div>
                 </div>
-
                 <div className="pt-4">
-                  <button type="submit" className="w-full bg-slate-900 text-white py-4 md:py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all">
-                    Ingresar a Agenda Institucional
-                  </button>
+                  <button type="submit" className="w-full bg-slate-900 text-white py-4 md:py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all">Ingresar a Agenda Institucional</button>
                 </div>
               </form>
             </div>
