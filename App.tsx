@@ -670,5 +670,89 @@ async function apiPatchActivity(payload: any) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
- 
+ // ===== PASO 3.4: Sync real con API =====
+
+// 1) REFRESH: trae de BD y actualiza estado + localStorage
+const refreshGlobalData = useCallback(async () => {
+  try {
+    const roleParam = userRole === UserRole.ADMIN ? "admin" : "gestor";
+    const userParam = userRole === UserRole.ADMIN ? undefined : currentPromoterId;
+
+    const data = await apiListActivities({ role: roleParam, user: userParam });
+    const apiActivities = (data.items || []).map(mapRowToUiActivity);
+
+    setActivities(apiActivities);
+    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(apiActivities));
+
+    setShowSaveSuccess(true);
+    setTimeout(() => setShowSaveSuccess(false), 1500);
+  } catch (e) {
+    console.error("Error sincronizando con API:", e);
+  }
+}, [userRole, currentPromoterId]);
+
+// 2) UPDATE local inmediato (optimista) + mantiene UI fluida
+const handleUpdateActivity = useCallback((id: string, updates: Partial<Activity>) => {
+  setActivities(prev => {
+    const updated = prev.map(a => a.id === id ? { ...a, ...updates } : a);
+    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updated));
+    return updated;
+  });
+}, []);
+
+// 3) ADD: hace POST a la BD, luego refresca desde API
+const handleAddActivity = useCallback(async (activity: Activity) => {
+  try {
+    const payload = mapUiActivityToApiPayload(activity, {
+      currentUserId: currentPromoterId,
+      userRole: String(userRole),
+    });
+
+    await apiCreateActivity(payload);
+
+    // Refrescar desde BD (fuente de verdad)
+    await refreshGlobalData();
+  } catch (e) {
+    console.error("Error creando actividad en API:", e);
+
+    // Fallback: si falla API, al menos no pierdas el registro local
+    setActivities(prev => {
+      const localNew = { ...activity, promoterId: activity.promoterId || currentPromoterId };
+      const updated = [localNew, ...prev];
+      localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updated));
+      return updated;
+    });
+  }
+}, [currentPromoterId, userRole, refreshGlobalData]);
+
+// 4) BULK ADD: opcional (importación). Inserta local y refresca
+const handleBulkAddActivities = useCallback(async (newActivities: Activity[]) => {
+  // guarda local primero (rápido)
+  setActivities(prev => {
+    const existingIds = new Set(prev.map(a => a.id));
+    const uniqueNew = newActivities.filter(a => !existingIds.has(a.id));
+    const updated = [...uniqueNew, ...prev];
+    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updated));
+    return updated;
+  });
+
+  // Luego sincroniza con la BD (si quieres)
+  try {
+    for (const a of newActivities) {
+      const payload = mapUiActivityToApiPayload(a, {
+        currentUserId: currentPromoterId,
+        userRole: String(userRole),
+      });
+      // intenta crear; si ya existe o falla, no rompe todo
+      await apiCreateActivity(payload).catch(() => null);
+    }
+    await refreshGlobalData();
+  } catch (e) {
+    console.error("Error en bulk sync:", e);
+  }
+
+  setShowSaveSuccess(true);
+  setTimeout(() => setShowSaveSuccess(false), 2000);
+}, [currentPromoterId, userRole, refreshGlobalData]);
+
 
