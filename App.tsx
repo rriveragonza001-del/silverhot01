@@ -1,7 +1,8 @@
-
+// App.tsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MOCK_ACTIVITIES, MOCK_PROMOTERS } from './utils/mockData';
 import { Activity, Promoter, ActivityType, ActivityStatus, UserRole, Notification } from './types';
+
 import TrackingMap from './components/TrackingMap';
 import ActivityLog from './components/ActivityLog';
 import PerformanceReport from './components/PerformanceReport';
@@ -15,7 +16,19 @@ import AdminNotificationModule from './components/AdminNotificationModule';
 import AdminAssignmentModule from './components/AdminAssignmentModule';
 import ProfileModule from './components/ProfileModule';
 
-type View = 'dashboard' | 'tracking' | 'activities' | 'reports' | 'program' | 'final-report' | 'admin-custom-reports' | 'team' | 'user-management' | 'admin-notifications' | 'admin-assignments' | 'profile';
+type View =
+  | 'dashboard'
+  | 'tracking'
+  | 'activities'
+  | 'reports'
+  | 'program'
+  | 'final-report'
+  | 'admin-custom-reports'
+  | 'team'
+  | 'user-management'
+  | 'admin-notifications'
+  | 'admin-assignments'
+  | 'profile';
 
 const STORAGE_KEYS = {
   PROMOTERS: 'pf_promoters_v7',
@@ -24,6 +37,55 @@ const STORAGE_KEYS = {
   AUTH_ID: 'pf_auth_user_id_v7',
   AUTH_ROLE: 'pf_auth_user_role_v7'
 };
+
+/**
+ * Ajusta aquí si tu Promoter no tiene "email".
+ * - Si sí tiene: return p.email
+ * - Si no: usa el campo correcto (p.username, p.userEmail, etc.)
+ */
+function getUserEmailFromPromoter(p?: Promoter | null) {
+  // @ts-ignore (por si tu type Promoter no define email aún)
+  const email = (p as any)?.email;
+  if (email && typeof email === 'string') return email;
+
+  // fallback: en algunos proyectos usan id como email
+  if (p?.id) return p.id;
+
+  return '';
+}
+
+function mapRowToUiActivity(row: any): Activity {
+  // Normaliza "date/time"
+  const date = row.activity_date ?? row.date ?? '';
+  const time = row.activity_time ?? row.time ?? '';
+
+  return {
+    id: String(row.id),
+    promoterId: row.created_by, // OJO: aquí promoterId pasa a ser EMAIL (created_by)
+
+    community: row.community ?? '',
+    objective: row.objective ?? row.title ?? '',
+    date,
+    time,
+    status: row.status ?? ActivityStatus.PENDING,
+
+    attendeeName: row.attendeeName ?? '',
+    attendeeRole: row.attendeeRole ?? '',
+    attendeePhone: row.attendeePhone ?? '',
+    proposals: row.proposals ?? '',
+    agreements: row.agreements ?? '',
+    additionalObservations: row.additionalObservations ?? '',
+    driveLinks: row.driveLinks ?? '',
+    referral: row.referral ?? '',
+    companions: row.companions ?? '',
+    verificationPhoto: row.verificationPhoto ?? '',
+
+    location: row.location ?? { lat: 13.6929, lng: -89.2182 },
+
+    // Si tu API trae observaciones (json_agg)
+    observations: row.observations ?? []
+  } as any;
+}
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!localStorage.getItem(STORAGE_KEYS.AUTH_ID));
@@ -34,53 +96,59 @@ const App: React.FC = () => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PROMOTERS);
       return saved ? JSON.parse(saved) : MOCK_PROMOTERS;
-    } catch (e) { return MOCK_PROMOTERS; }
+    } catch (e) {
+      return MOCK_PROMOTERS;
+    }
   });
-  
+
+  /**
+   * ACTIVITIES:
+   * - mantenemos el cache local si existe, pero la verdad la traerá la API.
+   * - apenas se autentique el usuario, se refresca desde /api/activities
+   */
   const [activities, setActivities] = useState<Activity[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.ACTIVITIES);
       return saved ? JSON.parse(saved) : MOCK_ACTIVITIES;
-    } catch (e) { return MOCK_ACTIVITIES; }
+    } catch (e) {
+      return MOCK_ACTIVITIES;
+    }
   });
-  
+
   const [notifications, setNotifications] = useState<Notification[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
       return saved ? JSON.parse(saved) : [];
-    } catch (e) { return []; }
+    } catch (e) {
+      return [];
+    }
   });
 
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
   const [adminViewPromoterId, setAdminViewPromoterId] = useState<string>('ALL');
 
-  const currentPromoter = useMemo(() => 
-    promoters.find(p => p.id === currentPromoterId), 
+  const [isSyncingApi, setIsSyncingApi] = useState(false);
+
+  const currentPromoter = useMemo(
+    () => promoters.find(p => p.id === currentPromoterId),
     [promoters, currentPromoterId]
   );
 
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.ACTIVITIES && e.newValue) {
-        setActivities(JSON.parse(e.newValue));
-      }
-      if (e.key === STORAGE_KEYS.PROMOTERS && e.newValue) {
-        setPromoters(JSON.parse(e.newValue));
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  const currentUserEmail = useMemo(() => getUserEmailFromPromoter(currentPromoter), [currentPromoter]);
 
+  // Mantener promotores/avisos en localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(promoters));
-    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(activities));
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
-  }, [promoters, activities, notifications]);
+  }, [promoters, notifications]);
+
+  // Cache local opcional para activities (no manda, solo cache)
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(activities));
+  }, [activities]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -88,53 +156,125 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const refreshGlobalData = useCallback(() => {
-    try {
-      const savedActs = localStorage.getItem(STORAGE_KEYS.ACTIVITIES);
-      if (savedActs) setActivities(JSON.parse(savedActs));
-      
-      const savedProms = localStorage.getItem(STORAGE_KEYS.PROMOTERS);
-      if (savedProms) setPromoters(JSON.parse(savedProms));
+  /**
+   * SINCRONIZACIÓN REAL: trae actividades de la BD vía API
+   */
+  const refreshActivitiesFromApi = useCallback(async () => {
+    if (!isAuthenticated) return;
 
+    setIsSyncingApi(true);
+    try {
+      const isAdmin = userRole === UserRole.ADMIN;
+      const qs = isAdmin
+        ? `?role=admin`
+        : `?role=gestor&user=${encodeURIComponent(currentUserEmail)}`;
+
+      const r = await fetch(`/api/activities${qs}`);
+      const data = await r.json();
+
+      if (!r.ok) throw new Error(data?.error || 'Error loading activities');
+
+      const mapped: Activity[] = (data.items || []).map(mapRowToUiActivity);
+
+      setActivities(mapped);
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 1500);
-    } catch (e) { console.error("Error al sincronizar datos locales", e); }
-  }, []);
+    } catch (e) {
+      console.error('refreshActivitiesFromApi:', e);
+    } finally {
+      setIsSyncingApi(false);
+    }
+  }, [isAuthenticated, userRole, currentUserEmail]);
 
+  /**
+   * Ejecutar refresh al autenticarse o cambiar usuario/rol
+   */
+  useEffect(() => {
+    if (isAuthenticated && currentUserEmail) {
+      refreshActivitiesFromApi();
+    }
+  }, [isAuthenticated, currentUserEmail, userRole, refreshActivitiesFromApi]);
+
+  /**
+   * Crear actividad en BD (POST /api/activities)
+   * Nota: tu API hoy guarda objective/community/date/time/status y relaciona por created_by/assigned_to (emails).
+   */
+  const handleAddActivityApi = useCallback(
+    async (activity: Activity) => {
+      try {
+        const isAdmin = userRole === UserRole.ADMIN;
+
+        const payload = {
+          created_by: currentUserEmail,
+          role: isAdmin ? 'admin' : 'gestor',
+
+          // Si el admin asigna, debe mandar assigned_to (email).
+          // Si el gestor crea, puedes asignar al admin o dejar null.
+          assigned_to: isAdmin ? (activity visible as any)?.assigned_to ?? null : 'admin@demo.com',
+
+          objective: activity.objective,
+          community: activity.community,
+          date: activity.date,
+          time: activity.time,
+          status: activity.status ?? 'pendiente'
+        };
+
+        const r = await fetch('/api/activities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await r.json();
+        if (!r.ok) throw new Error(data?.error || 'Error creating activity');
+
+        // Refresca desde BD para que quede igual en todos los dispositivos
+        await refreshActivitiesFromApi();
+      } catch (e) {
+        console.error('handleAddActivityApi:', e);
+      }
+    },
+    [userRole, currentUserEmail, refreshActivitiesFromApi]
+  );
+
+  /**
+   * Actualizaciones locales (por ahora) para status/inputs.
+   * OJO: esto NO persiste en BD aún. Luego hacemos PATCH /api/activities/:id
+   */
   const handleUpdateActivity = (id: string, updates: Partial<Activity>) => {
-    setActivities(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+    setActivities(prev => prev.map(a => (a.id === id ? { ...a, ...updates } : a)));
   };
 
-  const handleAddActivity = (activity: Activity) => {
-    const newActivity = {
-      ...activity,
-      promoterId: activity.promoterId || currentPromoterId
-    };
-    const updatedActivities = [newActivity, ...activities];
-    setActivities(updatedActivities);
-    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updatedActivities));
-  };
-
+  /**
+   * Bulk load (por ahora local). Si ProgramModule importa, lo podemos llevar a BD después.
+   */
   const handleBulkAddActivities = (newActivities: Activity[]) => {
     setActivities(prev => {
-      // Evitar duplicados por ID si es que vienen de la misma fuente
       const existingIds = new Set(prev.map(a => a.id));
       const uniqueNew = newActivities.filter(a => !existingIds.has(a.id));
       const updated = [...uniqueNew, ...prev];
-      localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updated));
       return updated;
     });
     setShowSaveSuccess(true);
     setTimeout(() => setShowSaveSuccess(false), 2000);
   };
 
+  /**
+   * FILTRO:
+   * - Como ahora promoterId = created_by (EMAIL)
+   * - entonces gestor filtra por email, no por id interno
+   */
   const filteredActivities = useMemo(() => {
     if (userRole === UserRole.ADMIN) {
-        if (adminViewPromoterId === 'ALL') return activities;
-        return activities.filter(a => a.promoterId === adminViewPromoterId);
+      if (adminViewPromoterId === 'ALL') return activities;
+
+      const p = promoters.find(x => x.id === adminViewPromoterId);
+      const email = getUserEmailFromPromoter(p);
+
+      return activities.filter(a => a.promoterId === email);
     }
-    return activities.filter(a => a.promoterId === currentPromoterId);
-  }, [activities, userRole, currentPromoterId, adminViewPromoterId]);
+    return activities.filter(a => a.promoterId === currentUserEmail);
+  }, [activities, userRole, currentUserEmail, adminViewPromoterId, promoters]);
 
   const handleLogin = (role: UserRole, userId: string) => {
     setUserRole(role);
@@ -142,11 +282,16 @@ const App: React.FC = () => {
     setIsAuthenticated(true);
     localStorage.setItem(STORAGE_KEYS.AUTH_ID, userId);
     localStorage.setItem(STORAGE_KEYS.AUTH_ROLE, role);
-    setPromoters(prev => prev.map(p => p.id === userId ? { ...p, isOnline: true, lastConnection: new Date().toISOString() } : p));
+
+    setPromoters(prev =>
+      prev.map(p => (p.id === userId ? { ...p, isOnline: true, lastConnection: new Date().toISOString() } : p))
+    );
   };
 
   const handleLogout = () => {
-    setPromoters(prev => prev.map(p => p.id === currentPromoterId ? { ...p, isOnline: false, lastConnection: new Date().toISOString() } : p));
+    setPromoters(prev =>
+      prev.map(p => (p.id === currentPromoterId ? { ...p, isOnline: false, lastConnection: new Date().toISOString() } : p))
+    );
     setIsAuthenticated(false);
     localStorage.removeItem(STORAGE_KEYS.AUTH_ID);
     localStorage.removeItem(STORAGE_KEYS.AUTH_ROLE);
@@ -163,7 +308,7 @@ const App: React.FC = () => {
     { id: 'reports', label: 'Resumen IA', icon: 'fa-chart-pie', adminOnly: true },
     { id: 'admin-custom-reports', label: 'Reportes', icon: 'fa-file-invoice-dollar', adminOnly: true },
     { id: 'program', label: 'Agenda', icon: 'fa-calendar-plus' },
-    { id: 'profile', label: 'Mi Perfil', icon: 'fa-user-circle' },
+    { id: 'profile', label: 'Mi Perfil', icon: 'fa-user-circle' }
   ].filter(item => {
     if (item.adminOnly && userRole !== UserRole.ADMIN) return false;
     return true;
@@ -176,19 +321,27 @@ const App: React.FC = () => {
           <i className="fa-solid fa-route text-2xl"></i>
         </div>
         <div>
-          <span className="text-2xl font-black tracking-tight text-white block leading-none">Promoter<span className="text-indigo-500">Flow</span></span>
-          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">Gestión Institucional</span>
+          <span className="text-2xl font-black tracking-tight text-white block leading-none">
+            Promoter<span className="text-indigo-500">Flow</span>
+          </span>
+          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 block">
+            Gestión Institucional
+          </span>
         </div>
       </div>
+
       <nav className="flex-1 px-5 mt-4 space-y-1.5 overflow-y-auto no-scrollbar">
-        {navItems.map((item) => (
+        {navItems.map(item => (
           <button
             key={item.id}
-            onClick={() => { setActiveView(item.id as View); setIsMobileMenuOpen(false); }}
+            onClick={() => {
+              setActiveView(item.id as View);
+              setIsMobileMenuOpen(false);
+            }}
             className={`w-full flex items-center space-x-3 px-5 py-3.5 rounded-2xl transition-all ${
-              activeView === item.id 
-              ? 'bg-indigo-600 text-white font-bold shadow-xl shadow-indigo-600/20' 
-              : 'hover:bg-slate-800 hover:text-white text-slate-400'
+              activeView === item.id
+                ? 'bg-indigo-600 text-white font-bold shadow-xl shadow-indigo-600/20'
+                : 'hover:bg-slate-800 hover:text-white text-slate-400'
             }`}
           >
             <i className={`fa-solid ${item.icon} w-6 text-lg`}></i>
@@ -196,14 +349,26 @@ const App: React.FC = () => {
           </button>
         ))}
       </nav>
+
       <div className="p-6 border-t border-slate-800 bg-slate-900/50">
-        <button onClick={handleLogout} className="w-full bg-slate-800/50 hover:bg-red-900/30 hover:text-red-400 p-4 rounded-2xl flex items-center gap-3 text-xs font-black transition-all mb-6 uppercase tracking-widest text-slate-300">
+        <button
+          onClick={handleLogout}
+          className="w-full bg-slate-800/50 hover:bg-red-900/30 hover:text-red-400 p-4 rounded-2xl flex items-center gap-3 text-xs font-black transition-all mb-6 uppercase tracking-widest text-slate-300"
+        >
           <i className="fa-solid fa-right-from-bracket"></i> Salir del Sistema
         </button>
-        <div className="p-4 bg-slate-800/30 rounded-2xl flex items-center gap-4 border border-slate-800/50 cursor-pointer hover:bg-slate-800/50 transition-all" onClick={() => setActiveView('profile')}>
-          <img src={currentPromoter?.photo} className="w-10 h-10 rounded-xl border border-slate-700 object-cover shadow-sm" />
+        <div
+          className="p-4 bg-slate-800/30 rounded-2xl flex items-center gap-4 border border-slate-800/50 cursor-pointer hover:bg-slate-800/50 transition-all"
+          onClick={() => setActiveView('profile')}
+        >
+          <img
+            src={(currentPromoter as any)?.photo}
+            className="w-10 h-10 rounded-xl border border-slate-700 object-cover shadow-sm"
+          />
           <div className="overflow-hidden">
-            <p className="text-[11px] font-black text-white truncate uppercase tracking-tight">{currentPromoter?.name}</p>
+            <p className="text-[11px] font-black text-white truncate uppercase tracking-tight">
+              {(currentPromoter as any)?.name}
+            </p>
             <p className="text-[8px] text-indigo-400 uppercase font-black tracking-[0.2em]">{userRole}</p>
           </div>
         </div>
@@ -211,7 +376,14 @@ const App: React.FC = () => {
     </>
   );
 
-  if (!isAuthenticated) return <Login onLogin={handleLogin} users={promoters} onUpdateUser={(id, up) => setPromoters(p => p.map(u => u.id === id ? {...u, ...up} : u))} />;
+  if (!isAuthenticated)
+    return (
+      <Login
+        onLogin={handleLogin}
+        users={promoters}
+        onUpdateUser={(id, up) => setPromoters(p => p.map(u => (u.id === id ? { ...(u as any), ...(up as any) } : u)))}
+      />
+    );
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
@@ -240,38 +412,48 @@ const App: React.FC = () => {
         <header className="safe-pt bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-5 flex justify-between items-center z-40 sticky top-0">
           <div className="flex items-center gap-4">
             {isMobile && (
-              <button onClick={() => setIsMobileMenuOpen(true)} className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg"
+              >
                 <i className="fa-solid fa-bars"></i>
               </button>
             )}
             <div>
-              <h1 className="text-lg font-black text-slate-800 tracking-tight">{navItems.find(i => i.id === activeView)?.label}</h1>
-              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Sincronización en tiempo real</p>
+              <h1 className="text-lg font-black text-slate-800 tracking-tight">
+                {navItems.find(i => i.id === activeView)?.label}
+              </h1>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                Sincronización en tiempo real
+              </p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-4">
             {userRole === UserRole.ADMIN && activeView === 'program' && (
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vista:</span>
-                <select 
-                  value={adminViewPromoterId} 
+                <select
+                  value={adminViewPromoterId}
                   onChange={e => setAdminViewPromoterId(e.target.value)}
                   className="bg-slate-100 border-none rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="ALL">TODO EL EQUIPO</option>
-                  {promoters.filter(p => p.role === UserRole.FIELD_PROMOTER).map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                  {promoters.filter((p: any) => p.role === UserRole.FIELD_PROMOTER).map(p => (
+                    <option key={p.id} value={p.id}>
+                      {(p as any).name}
+                    </option>
                   ))}
                 </select>
               </div>
             )}
-            <button 
-              onClick={refreshGlobalData}
+
+            <button
+              onClick={refreshActivitiesFromApi}
               className="px-5 py-2.5 rounded-xl bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90"
-              title="Forzar Sincronización"
+              title="Sincronizar desde BD"
             >
-              <i className="fa-solid fa-sync"></i> Actualizar
+              <i className={`fa-solid fa-sync ${isSyncingApi ? 'fa-spin' : ''}`}></i> Actualizar
             </button>
           </div>
         </header>
@@ -286,47 +468,83 @@ const App: React.FC = () => {
                   <StatCard icon="fa-calendar-check" color="text-emerald-600" bg="bg-emerald-50" label="En Agenda" value={filteredActivities.length.toString()} />
                   <StatCard icon="fa-tower-broadcast" color="text-amber-600" bg="bg-amber-50" label="Red Sync" value="OK" />
                 </div>
-                <ActivityLog 
-                  activities={filteredActivities} 
-                  promoters={promoters} 
-                  userRole={userRole} 
+
+                <ActivityLog
+                  activities={filteredActivities}
+                  promoters={promoters}
+                  userRole={userRole}
                   onUpdateActivity={handleUpdateActivity}
-                  onAddActivity={handleAddActivity}
+                  onAddActivity={handleAddActivityApi}
                   currentUserId={currentPromoterId}
-                  onRefresh={refreshGlobalData}
+                  onRefresh={refreshActivitiesFromApi}
                 />
               </div>
             )}
+
             {activeView === 'program' && (
-              <ProgramModule 
+              <ProgramModule
                 promoterId={userRole === UserRole.ADMIN ? adminViewPromoterId : currentPromoterId}
-                activities={filteredActivities} 
+                activities={filteredActivities}
                 promoters={promoters}
-                onAddActivity={handleAddActivity}
-                currentLocation={currentPromoter?.lastLocation || { lat: 13.6929, lng: -89.2182 }} 
+                onAddActivity={handleAddActivityApi}
+                currentLocation={(currentPromoter as any)?.lastLocation || { lat: 13.6929, lng: -89.2182 }}
                 userRole={userRole}
-                onRefresh={refreshGlobalData}
+                onRefresh={refreshActivitiesFromApi}
                 onProgramLoaded={handleBulkAddActivities}
               />
             )}
+
             {activeView === 'activities' && (
-              <ActivityLog 
-                activities={filteredActivities} 
-                promoters={promoters} 
-                userRole={userRole} 
+              <ActivityLog
+                activities={filteredActivities}
+                promoters={promoters}
+                userRole={userRole}
                 onUpdateActivity={handleUpdateActivity}
-                onAddActivity={handleAddActivity}
+                onAddActivity={handleAddActivityApi}
                 currentUserId={currentPromoterId}
-                onRefresh={refreshGlobalData}
+                onRefresh={refreshActivitiesFromApi}
               />
             )}
+
             {activeView === 'tracking' && <TrackingMap promoters={promoters} />}
             {activeView === 'team' && <TeamModule promoters={promoters} />}
-            {activeView === 'user-management' && <UserManagementModule users={promoters} onAddUser={u => setPromoters(p => [u, ...p])} onUpdateUser={(id, up) => setPromoters(p => p.map(u => u.id === id ? {...u, ...up} : u))} onDeleteUser={id => setPromoters(p => p.filter(u => u.id !== id))} />}
-            {activeView === 'profile' && currentPromoter && <ProfileModule user={currentPromoter} onUpdateUser={(id, up) => setPromoters(p => p.map(u => u.id === id ? {...u, ...up} : u))} />}
+
+            {activeView === 'user-management' && (
+              <UserManagementModule
+                users={promoters}
+                onAddUser={(u: any) => setPromoters(p => [u, ...p])}
+                onUpdateUser={(id: string, up: any) => setPromoters(p => p.map(u => (u.id === id ? { ...(u as any), ...(up as any) } : u)))}
+                onDeleteUser={(id: string) => setPromoters(p => p.filter(u => u.id !== id))}
+              />
+            )}
+
+            {activeView === 'profile' && currentPromoter && (
+              <ProfileModule
+                user={currentPromoter as any}
+                onUpdateUser={(id: string, up: any) => setPromoters(p => p.map(u => (u.id === id ? { ...(u as any), ...(up as any) } : u)))}
+              />
+            )}
+
             {activeView === 'reports' && <PerformanceReport activities={activities} promoters={promoters} />}
-            {activeView === 'admin-notifications' && <AdminNotificationModule promoters={promoters} notifications={notifications} onSendNotification={n => setNotifications(prev => [{...n, id: Date.now().toString()} as any, ...prev])} />}
-            {activeView === 'admin-assignments' && <AdminAssignmentModule adminId={currentPromoterId} promoters={promoters.filter(p => p.role === UserRole.FIELD_PROMOTER)} onAssignActivities={acts => setActivities(prev => [...acts, ...prev])} />}
+
+            {activeView === 'admin-notifications' && (
+              <AdminNotificationModule
+                promoters={promoters}
+                notifications={notifications}
+                onSendNotification={(n: any) => setNotifications(prev => [{ ...(n as any), id: Date.now().toString() } as any, ...prev])}
+              />
+            )}
+
+            {activeView === 'admin-assignments' && (
+              <AdminAssignmentModule
+                adminId={currentPromoterId}
+                promoters={promoters.filter((p: any) => p.role === UserRole.FIELD_PROMOTER)}
+                onAssignActivities={(acts: any[]) => {
+                  // OJO: esto sigue siendo local. Luego lo convertimos a POST masivo a BD.
+                  setActivities(prev => [...acts, ...prev]);
+                }}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -334,9 +552,11 @@ const App: React.FC = () => {
   );
 };
 
-const StatCard = ({ icon, color, bg, label, value }: { icon: string, color: string, bg: string, label: string, value: string }) => (
+const StatCard = ({ icon, color, bg, label, value }: { icon: string; color: string; bg: string; label: string; value: string }) => (
   <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 flex items-center gap-5">
-    <div className={`w-14 h-14 ${bg} ${color} rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 shadow-inner`}><i className={`fa-solid ${icon}`}></i></div>
+    <div className={`w-14 h-14 ${bg} ${color} rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 shadow-inner`}>
+      <i className={`fa-solid ${icon}`}></i>
+    </div>
     <div className="overflow-hidden">
       <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest truncate">{label}</p>
       <p className="font-black text-slate-800 text-lg tracking-tighter leading-none mt-1">{value}</p>
@@ -345,42 +565,3 @@ const StatCard = ({ icon, color, bg, label, value }: { icon: string, color: stri
 );
 
 export default App;
-
-function mapRowToUiActivity(row: any) {
-  // Normaliza "date/time"
-  const date = row.activity_date ?? row.date ?? "";
-  const time = row.activity_time ?? row.time ?? "";
-
-  return {
-    // UI espera string id
-    id: String(row.id),
-
-    // En tu UI ActivityLog usa promoterId
-    promoterId: row.created_by,
-
-    // Campos principales de UI
-    community: row.community ?? "",
-    objective: row.objective ?? row.title ?? "",
-    date,
-    time,
-    status: row.status ?? "pendiente",
-
-    // Extras que tu UI muestra pero tu BD aún no guarda:
-    attendeeName: row.attendeeName ?? "",
-    attendeeRole: row.attendeeRole ?? "",
-    attendeePhone: row.attendeePhone ?? "",
-    proposals: row.proposals ?? "",
-    agreements: row.agreements ?? "",
-    additionalObservations: row.additionalObservations ?? "",
-    driveLinks: row.driveLinks ?? "",
-    referral: row.referral ?? "",
-    companions: row.companions ?? "",
-    verificationPhoto: row.verificationPhoto ?? "",
-
-    // Si tienes location en UI:
-    location: row.location ?? { lat: 13.6929, lng: -89.2182 },
-
-    // Si tu API incluye observaciones:
-    observations: row.observations ?? [],
-  };
-}
