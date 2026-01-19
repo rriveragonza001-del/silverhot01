@@ -565,3 +565,42 @@ const StatCard = ({ icon, color, bg, label, value }: { icon: string; color: stri
 );
 
 export default App;
+// =========================
+// API helpers (App.tsx)
+// =========================
+async function apiFetchActivities(userRole: UserRole, currentUserId: string) {
+  const role = userRole === UserRole.ADMIN ? "admin" : "gestor";
+
+  const url =
+    role === "admin"
+      ? `/api/activities?role=admin`
+      : `/api/activities?role=gestor&user=${encodeURIComponent(currentUserId)}`;
+
+  const r = await fetch(url);
+  const d = await r.json();
+  if (!d?.ok) throw new Error(d?.error || "API error");
+  return d.items as any[];
+}
+
+async function apiCreateActivity(payload: any) {
+  const r = await fetch(`/api/activities`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const d = await r.json();
+  if (!d?.ok) throw new Error(d?.error || "API error");
+  return d.item;
+}
+
+async function apiPatchActivity(payload: any) {
+  const r = await fetch(`/api/activities`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const d = await r.json();
+  if (!d?.ok) throw new Error(d?.error || "API error");
+  return d.item;
+}
+
