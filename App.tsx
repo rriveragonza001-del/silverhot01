@@ -600,5 +600,4 @@ async function apiPatchActivity(payload: any) {
     body: JSON.stringify(payload),
   });
  
-}, [isAuthenticated, refreshGlobalData]);
 
