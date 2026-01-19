@@ -46,28 +46,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const role = String(body?.role ?? "gestor");
       const assigned_to = body?.assigned_to ? String(body.assigned_to) : null;
 
-      const objective = String(body?.objective ?? body?.title ?? "");
-      const community = body?.community ? String(body.community) : null;
+      // ✅ Tu front manda objective; tu BD exige title
+      const title = String(body?.title ?? body?.objective ?? "");
 
-      const activity_date = body?.date
-        ? String(body.date)
-        : (body?.activity_date ? String(body.activity_date) : null);
-
-      const activity_time = body?.time
-        ? String(body.time)
-        : (body?.activity_time ? String(body.activity_time) : null);
+      // Si tu tabla NO tiene "community", lo metemos en description temporalmente
+      const community = body?.community ? String(body.community) : "";
+      const rawDescription = body?.description ? String(body.description) : "";
+      const description =
+        community && rawDescription
+          ? `Comunidad: ${community}\n\n${rawDescription}`
+          : community
+            ? `Comunidad: ${community}`
+            : (rawDescription || null);
 
       const status = body?.status ? String(body.status) : "pendiente";
 
-      if (!created_by || !objective) {
-        return res.status(400).json({ error: "created_by and objective (or title) are required" });
+      if (!created_by || !title) {
+        return res.status(400).json({ error: "created_by and title/objective are required" });
       }
 
+      // ✅ INSERT SOLO a columnas que existen (title/description)
       const r = await client.query(
-        `insert into activities (created_by, role, assigned_to, objective, community, activity_date, activity_time, status)
-         values ($1,$2,$3,$4,$5,$6,$7,$8)
+        `insert into activities (created_by, role, assigned_to, title, description, status)
+         values ($1,$2,$3,$4,$5,$6)
          returning *`,
-        [created_by, role, assigned_to, objective, community, activity_date, activity_time, status]
+        [created_by, role, assigned_to, title, description, status]
       );
 
       return res.status(201).json({ ok: true, item: r.rows[0] });
@@ -80,3 +83,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try { await client.end(); } catch {}
   }
 }
+
