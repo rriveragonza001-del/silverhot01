@@ -183,95 +183,89 @@ const App: React.FC = () => {
   // -----------------------------
 
   const refreshGlobalData = useCallback(async () => {
-    try {
-      // 1) Refrescar actividades desde BD
-      const role: "admin" | "gestor" = userRole === UserRole.ADMIN ? "admin" : "gestor";
-      const rows = await apiListActivities(role, currentPromoterId);
-      const mapped = (rows as any[]).map(mapRowToUiActivity);
+  try {
+    // Admin ve todo; Gestor ve lo suyo
+    const qs =
+      userRole === UserRole.ADMIN
+        ? `role=admin`
+        : `role=gestor&user=${encodeURIComponent(currentPromoterId)}`;
 
-      // 2) Guardar en estado + localStorage
-      setActivities(mapped);
-      localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(mapped));
+    const resp = await fetch(`/api/activities?${qs}`);
+    const data = await resp.json();
 
-      // 3) Promoters se quedan locales (por ahora)
-      const savedProms = localStorage.getItem(STORAGE_KEYS.PROMOTERS);
-      if (savedProms) setPromoters(safeJsonParse<Promoter[]>(savedProms, promoters));
-
-      setShowSaveSuccess(true);
-      setTimeout(() => setShowSaveSuccess(false), 1500);
-    } catch (e) {
-      console.error("Error al sincronizar con API", e);
+    if (!resp.ok || !data?.ok) {
+      console.error("Refresh failed:", data);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userRole, currentPromoterId]);
 
-  const handleAddActivity = useCallback(
-    async (activity: Activity) => {
-      try {
-        // Normalización: tu API guarda objective/community/activity_date/activity_time/status
-        const payload = {
-          created_by: currentPromoterId, // en tu app: el "id" del usuario (idealmente email)
-          role: userRole === UserRole.ADMIN ? "admin" : "gestor",
-          assigned_to: null, // si luego implementas asignaciones reales, aquí mandas el email destino
-          objective: activity.objective ?? "",
-          community: activity.community ?? "",
-          activity_date: activity.date ?? "",
-          activity_time: activity.time ?? "",
-          status: activity.status ?? ActivityStatus.PENDING,
-        };
+    const serverActivities = (data.items ?? []).map(mapRowToUiActivity);
 
-        await apiCreateActivity(payload);
+    // Sustituimos el estado local por lo que viene de BD
+    setActivities(serverActivities);
+    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(serverActivities));
 
-        // Luego refrescamos lista desde BD
-        await refreshGlobalData();
-      } catch (e) {
-        console.error("Error creando actividad en API", e);
-        // Fallback: si falla API, lo guardamos local para no perderlo
-        const newLocal = {
-          ...activity,
-          promoterId: activity.promoterId || currentPromoterId,
-          id: activity.id || `act-${Date.now()}`,
-        } as Activity;
+    setShowSaveSuccess(true);
+    setTimeout(() => setShowSaveSuccess(false), 1500);
+  } catch (e) {
+    console.error("Error al sincronizar con API", e);
+  }
+}, [userRole, currentPromoterId, setActivities]);
 
-        setActivities((prev) => {
-          const updated = [newLocal, ...prev];
-          localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updated));
-          return updated;
-        });
-      }
-    },
-    [currentPromoterId, userRole, refreshGlobalData]
-  );
+const handleAddActivity = useCallback(
+  async (activity: Activity) => {
+    try {
+      // 1) POST a la BD
+      const payload = toApiPayload(activity, userRole, currentPromoterId);
 
-  const handleBulkAddActivities = useCallback(
-    async (newActivities: Activity[]) => {
-      // En esta etapa no hay endpoint bulk; lo dejamos local y luego refrescamos.
-      setActivities((prev) => {
-        const existingIds = new Set(prev.map((a) => a.id));
-        const uniqueNew = newActivities.filter((a) => !existingIds.has(a.id));
-        const updated = [...uniqueNew, ...prev];
-        localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updated));
-        return updated;
+      const resp = await fetch("/api/activities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
-      setShowSaveSuccess(true);
-      setTimeout(() => setShowSaveSuccess(false), 1200);
+      const data = await resp.json();
+      if (!resp.ok || !data?.ok) {
+        console.error("POST /api/activities failed:", data);
+        return;
+      }
 
-      // Si quieres forzar que todo venga desde BD (recomendado), descomenta:
-      // await refreshGlobalData();
-    },
-    []
-  );
+      // 2) Refresca desde BD para tener el id real
+      await refreshGlobalData();
+    } catch (e) {
+      console.error("Error creando actividad", e);
+    }
+  },
+  [userRole, currentPromoterId, refreshGlobalData]
+);
 
-  const handleUpdateActivity = useCallback((id: string, updates: Partial<Activity>) => {
-    // Nota: tu API actual NO tiene PATCH/PUT. Por eso, esto solo actualiza local.
-    // Si luego agregas endpoint /api/activities/:id (PATCH), aquí sincronizamos también.
-    setActivities((prev) => {
-      const updated = prev.map((a) => (a.id === id ? { ...a, ...updates } : a));
-      localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
+const handleBulkAddActivities = useCallback(
+  async (newActivities: Activity[]) => {
+    try {
+      // Inserta 1 por 1 (simple y robusto)
+      for (const a of newActivities) {
+        const payload = toApiPayload(a, userRole, currentPromoterId);
+        await fetch("/api/activities", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+      await refreshGlobalData();
+    } catch (e) {
+      console.error("Error en carga masiva", e);
+    }
+  },
+  [userRole, currentPromoterId, refreshGlobalData]
+);
+
+// Recomendado: por ahora actualiza UI local (la BD aún no tiene PATCH/PUT)
+const handleUpdateActivity = useCallback((id: string, updates: Partial<Activity>) => {
+  setActivities(prev => {
+    const next = prev.map(a => (a.id === id ? { ...a, ...updates } : a));
+    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(next));
+    return next;
+  });
+}, []);
 
   // -----------------------------
   // FIN PASO 3.4
@@ -651,3 +645,54 @@ const StatCard = ({
 );
 
 export default App;
+function mapRowToUiActivity(row: any) {
+  const date = row.activity_date ?? row.date ?? "";
+  const time = row.activity_time ?? row.time ?? "";
+
+  return {
+    id: String(row.id),
+    promoterId: String(row.created_by ?? ""), // tu UI usa promoterId como creador
+
+    community: row.community ?? "",
+    objective: row.objective ?? row.title ?? "",
+    date,
+    time,
+    status: row.status ?? "pendiente",
+
+    // campos UI (pueden venir null desde BD)
+    attendeeName: row.attendee_name ?? row.attendeeName ?? "",
+    attendeeRole: row.attendee_role ?? row.attendeeRole ?? "",
+    attendeePhone: row.attendee_phone ?? row.attendeePhone ?? "",
+    proposals: row.proposals ?? "",
+    agreements: row.agreements ?? "",
+    additionalObservations: row.additional_observations ?? row.additionalObservations ?? "",
+    driveLinks: row.drive_links ?? row.driveLinks ?? "",
+    referral: row.referral ?? "",
+    companions: row.companions ?? "",
+    verificationPhoto: row.verification_photo ?? row.verificationPhoto ?? "",
+
+    location: row.location ?? { lat: 13.6929, lng: -89.2182 },
+    observations: row.observations ?? [],
+  };
+}
+
+function toApiPayload(activity: any, currentRole: string, currentUserId: string) {
+  const isAdmin = String(currentRole).toLowerCase() === "admin";
+
+  return {
+    created_by: String(activity.promoterId ?? currentUserId), // creador real
+    role: isAdmin ? "admin" : "gestor",
+    // si admin crea: debe asignar; si gestor crea: puede quedar null o asignar a admin
+    assigned_to: activity.assigned_to
+      ? String(activity.assigned_to)
+      : (isAdmin ? (activity.assignedTo ? String(activity.assignedTo) : "gestor1@demo.com") : "admin@demo.com"),
+
+    objective: String(activity.objective ?? activity.title ?? ""),
+    community: activity.community ? String(activity.community) : null,
+
+    date: activity.date ? String(activity.date) : null,
+    time: activity.time ? String(activity.time) : null,
+
+    status: activity.status ? String(activity.status) : "pendiente",
+  };
+}
