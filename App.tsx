@@ -210,7 +210,7 @@ const App: React.FC = () => {
 
           // Si el admin asigna, debe mandar assigned_to (email).
           // Si el gestor crea, puedes asignar al admin o dejar null.
-          assigned_to: isAdmin ? (activity visible as any)?.assigned_to ?? null : 'admin@demo.com',
+          assigned_to: isAdmin ? (activity.assigned_to ?? null) : 'admin@demo.com',
 
           objective: activity.objective,
           community: activity.community,
