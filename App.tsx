@@ -599,9 +599,7 @@ async function apiPatchActivity(payload: any) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const d = await r.json();
-  if (!d?.ok) throw new Error(d?.error || "API error");
-  return d.item;
+ 
 }
 useEffect(() => {
   if (isAuthenticated) {
