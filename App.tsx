@@ -345,3 +345,42 @@ const StatCard = ({ icon, color, bg, label, value }: { icon: string, color: stri
 );
 
 export default App;
+
+function mapRowToUiActivity(row: any) {
+  // Normaliza "date/time"
+  const date = row.activity_date ?? row.date ?? "";
+  const time = row.activity_time ?? row.time ?? "";
+
+  return {
+    // UI espera string id
+    id: String(row.id),
+
+    // En tu UI ActivityLog usa promoterId
+    promoterId: row.created_by,
+
+    // Campos principales de UI
+    community: row.community ?? "",
+    objective: row.objective ?? row.title ?? "",
+    date,
+    time,
+    status: row.status ?? "pendiente",
+
+    // Extras que tu UI muestra pero tu BD aún no guarda:
+    attendeeName: row.attendeeName ?? "",
+    attendeeRole: row.attendeeRole ?? "",
+    attendeePhone: row.attendeePhone ?? "",
+    proposals: row.proposals ?? "",
+    agreements: row.agreements ?? "",
+    additionalObservations: row.additionalObservations ?? "",
+    driveLinks: row.driveLinks ?? "",
+    referral: row.referral ?? "",
+    companions: row.companions ?? "",
+    verificationPhoto: row.verificationPhoto ?? "",
+
+    // Si tienes location en UI:
+    location: row.location ?? { lat: 13.6929, lng: -89.2182 },
+
+    // Si tu API incluye observaciones:
+    observations: row.observations ?? [],
+  };
+}
