@@ -86,6 +86,77 @@ function mapRowToUiActivity(row: any): Activity {
     observations: row.observations ?? []
   } as any;
 }
+// ===== API helpers (Front) =====
+async function apiListActivities(params: { role: string; user?: string }) {
+  const qs = new URLSearchParams();
+  qs.set("role", params.role);
+  if (params.user) qs.set("user", params.user);
+
+  const r = await fetch(`/api/activities?${qs.toString()}`);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data?.error || "Error listando actividades");
+  return data as { ok: true; items: any[] };
+}
+
+async function apiCreateActivity(payload: any) {
+  const r = await fetch(`/api/activities`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data?.error || "Error creando actividad");
+  return data as { ok: true; item: any };
+}
+
+// Convierte fila de BD -> Activity de tu UI
+function mapRowToUiActivity(row: any) {
+  const date = row.activity_date ?? row.date ?? "";
+  const time = row.activity_time ?? row.time ?? "";
+
+  return {
+    id: String(row.id),
+    promoterId: String(row.created_by ?? ""),
+    community: row.community ?? "",
+    objective: row.objective ?? row.title ?? "",
+
+    date,
+    time,
+    status: row.status ?? "pendiente",
+
+    // extras (si no existen en BD quedarán vacíos)
+    attendeeName: row.attendeeName ?? "",
+    attendeeRole: row.attendeeRole ?? "",
+    attendeePhone: row.attendeePhone ?? "",
+    proposals: row.proposals ?? "",
+    agreements: row.agreements ?? "",
+    additionalObservations: row.additionalObservations ?? "",
+    driveLinks: row.driveLinks ?? "",
+    referral: row.referral ?? "",
+    companions: row.companions ?? "",
+    verificationPhoto: row.verificationPhoto ?? "",
+    location: row.location ?? { lat: 13.6929, lng: -89.2182 },
+    observations: row.observations ?? [],
+  };
+}
+
+// Convierte Activity de tu UI -> payload para tu API
+function mapUiActivityToApiPayload(activity: any, ctx: { currentUserId: string; userRole: string }) {
+  const isAdmin = String(ctx.userRole).toLowerCase() === "admin";
+
+  return {
+    created_by: ctx.currentUserId,     // tu login ID (en tu demo son emails)
+    role: isAdmin ? "admin" : "gestor",
+    assigned_to: activity.assigned_to ?? (isAdmin ? (activity.promoterId ?? null) : "admin@demo.com"),
+
+    // Tu API acepta objective o title (según tu versión)
+    objective: activity.objective ?? activity.title ?? "",
+    community: activity.community ?? null,
+    date: activity.date ?? null,
+    time: activity.time ?? null,
+    status: activity.status ?? "pendiente",
+  };
+}
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!localStorage.getItem(STORAGE_KEYS.AUTH_ID));
