@@ -1,3 +1,13 @@
+if (req.method === "GET" && req.query.__debug === "1") {
+  const r = await client.query(`
+    select
+      current_database() as db,
+      inet_server_addr() as server_addr,
+      now() as now,
+      (select count(*) from activities) as activities_count
+  `);
+  return res.status(200).json({ ok: true, debug: r.rows[0] });
+}
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Client } from "pg";
 
