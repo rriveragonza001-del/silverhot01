@@ -603,4 +603,9 @@ async function apiPatchActivity(payload: any) {
   if (!d?.ok) throw new Error(d?.error || "API error");
   return d.item;
 }
+useEffect(() => {
+  if (isAuthenticated) {
+    refreshGlobalData();
+  }
+}, [isAuthenticated, refreshGlobalData]);
 
