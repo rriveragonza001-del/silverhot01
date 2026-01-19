@@ -600,10 +600,5 @@ async function apiPatchActivity(payload: any) {
     body: JSON.stringify(payload),
   });
  
-}
-useEffect(() => {
-  if (isAuthenticated) {
-    refreshGlobalData();
-  }
 }, [isAuthenticated, refreshGlobalData]);
 
