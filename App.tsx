@@ -547,7 +547,7 @@ const agendaActivities = useMemo(() => {
             {activeView === 'program' && (
               <ProgramModule
                 promoterId={userRole === UserRole.ADMIN ? adminViewPromoterId : currentPromoterId}
-                activities={filteredActivities}
+                activities={agendaActivities}
                 promoters={promoters}
                 onAddActivity={handleAddActivity}
                 currentLocation={currentPromoter?.lastLocation || DEFAULT_LOCATION}
