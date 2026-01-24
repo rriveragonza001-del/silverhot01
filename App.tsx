@@ -1,12 +1,18 @@
 // App.tsx (FINAL - limpio, 1 sola pieza)
 // - Sincroniza Activities desde Neon vía /api/activities (GET/POST)
+// - Sincroniza Promoters (perfiles) vía /api/promoters (GET/PATCH) -> si NO existe, hace fallback a localStorage
 // - Mantiene localStorage como cache/compatibilidad
-// - Incluye helpers, mapRowToUiActivity, useEffect de carga, y 4 funciones sustituidas:
+// - Incluye helpers, mapRowToUiActivity, mapRowToUiPromoter, useEffect de carga, y 4 funciones sustituidas:
 //   refreshGlobalData, handleAddActivity, handleBulkAddActivities, handleUpdateActivity
+//
+// IMPORTANTE (control admin de perfiles):
+// Para que el ADMIN vea cambios hechos por cada promotor (foto/correo/clave/etc) desde OTRO dispositivo,
+// esos cambios deben persistirse en servidor. Este App.tsx ya intenta usar /api/promoters.
+// Si aún no tienes esa API creada, el admin SOLO verá cambios locales del mismo navegador.
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MOCK_ACTIVITIES, MOCK_PROMOTERS } from './utils/mockData';
-import { Activity, Promoter, ActivityType, ActivityStatus, UserRole, Notification } from './types';
+import { Activity, Promoter, UserRole, Notification } from './types';
 
 import TrackingMap from './components/TrackingMap';
 import ActivityLog from './components/ActivityLog';
@@ -46,16 +52,25 @@ const STORAGE_KEYS = {
 const DEFAULT_LOCATION = { lat: 13.6929, lng: -89.2182 };
 
 /** =========================
- * Helpers API (Paso 3.3/3.4)
+ * Helpers API
  * ========================= */
 
+async function safeJson(r: Response) {
+  try {
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+/** ACTIVITIES */
 async function apiGetActivities(params: { role: string; user?: string }) {
   const qs = new URLSearchParams();
   qs.set('role', params.role);
   if (params.user) qs.set('user', params.user);
 
   const r = await fetch(`/api/activities?${qs.toString()}`, { method: 'GET' });
-  const data = await r.json();
+  const data = await safeJson(r);
   if (!r.ok) throw new Error(data?.error || 'Error GET /api/activities');
   return data as { ok: true; items: any[] };
 }
@@ -66,16 +81,39 @@ async function apiCreateActivity(payload: any) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  const data = await r.json();
+  const data = await safeJson(r);
   if (!r.ok) throw new Error(data?.error || 'Error POST /api/activities');
   return data as { ok: true; item: any };
 }
 
-/**
- * Convierte fila de Neon/API => Activity que espera tu UI
- * Nota: tu BD hoy guarda (al menos): id, created_by, role, assigned_to, title, status, created_at
- * y tu handler POST actual guarda: objective/community/activity_date/activity_time (según tu versión).
- */
+/** PROMOTERS (perfiles) */
+async function apiGetPromoters() {
+  // Si tu backend no existe, esto caerá a catch y se usará localStorage/mock.
+  const r = await fetch(`/api/promoters`, { method: 'GET' });
+  const data = await safeJson(r);
+  if (!r.ok) throw new Error(data?.error || 'Error GET /api/promoters');
+  return data as { ok: true; items: any[] };
+}
+
+async function apiUpsertPromoter(id: string, updates: Partial<Promoter>) {
+  // PATCH /api/promoters?id=...  (o ajusta según tu ruta real)
+  const qs = new URLSearchParams();
+  qs.set('id', id);
+
+  const r = await fetch(`/api/promoters?${qs.toString()}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  const data = await safeJson(r);
+  if (!r.ok) throw new Error(data?.error || 'Error PATCH /api/promoters');
+  return data as { ok: true; item: any };
+}
+
+/** =========================
+ * Mappers
+ * ========================= */
+
 function mapRowToUiActivity(row: any): Activity {
   const date = row.activity_date ?? row.date ?? '';
   const time = row.activity_time ?? row.time ?? '';
@@ -84,14 +122,12 @@ function mapRowToUiActivity(row: any): Activity {
     id: String(row.id),
     promoterId: String(row.created_by ?? ''),
 
-    // UI
     community: row.community ?? '',
     objective: row.objective ?? row.title ?? '',
     date,
     time,
     status: (row.status ?? 'pendiente') as any,
 
-    // extras (si no existen en BD, quedan vacíos para no romper UI)
     attendeeName: row.attendeeName ?? '',
     attendeeRole: row.attendeeRole ?? '',
     attendeePhone: row.attendeePhone ?? '',
@@ -104,11 +140,38 @@ function mapRowToUiActivity(row: any): Activity {
     verificationPhoto: row.verificationPhoto ?? '',
 
     location: row.location ?? DEFAULT_LOCATION,
-
-    // si tu API agrega observaciones
     observations: row.observations ?? [],
-    // si tu tipo Activity incluye más campos, aquí quedan según tu interface (TypeScript lo validará)
   } as Activity;
+}
+
+function mapRowToUiPromoter(row: any): Promoter {
+  // Ajusta mapeo según tu tabla/campos reales en Neon (si ya los creaste).
+  // Fallbacks para no romper.
+  return {
+    id: String(row.id ?? row.email ?? ''),
+    name: row.name ?? row.full_name ?? 'Sin nombre',
+    role: (row.role ?? UserRole.FIELD_PROMOTER) as any,
+    email: row.email ?? '',
+    photo: row.photo ?? row.avatar_url ?? '',
+    isOnline: !!row.isOnline,
+    lastConnection: row.lastConnection ?? row.last_connection ?? '',
+    lastLocation: row.lastLocation ?? row.last_location ?? undefined,
+
+    // Si tu tipo Promoter tiene password, phone, etc:
+    ...(row.password ? { password: row.password } : {}),
+    ...(row.phone ? { phone: row.phone } : {}),
+  } as Promoter;
+}
+
+/** Merge por id: preserva lo local cuando el server no trae un campo */
+function mergePromotersById(localList: Promoter[], serverList: Promoter[]) {
+  const map = new Map<string, Promoter>();
+  for (const p of localList) map.set(p.id, p);
+  for (const sp of serverList) {
+    const prev = map.get(sp.id);
+    map.set(sp.id, prev ? { ...prev, ...sp } : sp);
+  }
+  return Array.from(map.values());
 }
 
 /** =========================
@@ -159,21 +222,21 @@ const App: React.FC = () => {
     [promoters, currentPromoterId]
   );
 
-  // Persistencia local (cache/compatibilidad)
+  /** Persistencia local (cache/compatibilidad) */
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(promoters));
     localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(activities));
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
   }, [promoters, activities, notifications]);
 
-  // Responsive
+  /** Responsive */
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Sync entre pestañas (si alguien escribe en localStorage)
+  /** Sync entre pestañas (localStorage) */
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.ACTIVITIES && e.newValue) setActivities(JSON.parse(e.newValue));
@@ -183,15 +246,28 @@ const App: React.FC = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  /** =============================================
-   * useEffect (Paso 3.3.2) - Cargar desde API
-   * ============================================= */
+  /** =========================
+   * Carga inicial desde API
+   * ========================= */
   useEffect(() => {
-    // Solo intenta sync si ya hay sesión
     if (!isAuthenticated || !currentPromoterId) return;
 
-    // Carga inicial desde API
     (async () => {
+      // 1) Cargar promoters desde API (para que admin vea perfiles actualizados)
+      try {
+        const pr = await apiGetPromoters();
+        const serverProms = (pr.items || []).map(mapRowToUiPromoter);
+        setPromoters((prev) => {
+          const merged = mergePromotersById(prev, serverProms);
+          localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(merged));
+          return merged;
+        });
+      } catch (err) {
+        // si no existe API aún, no rompas
+        console.warn('No se pudo sincronizar /api/promoters (se usa localStorage).', err);
+      }
+
+      // 2) Cargar activities desde API
       try {
         const roleParam = userRole === UserRole.ADMIN ? 'admin' : 'gestor';
         const userParam = userRole === UserRole.ADMIN ? undefined : currentPromoterId;
@@ -202,19 +278,32 @@ const App: React.FC = () => {
         setActivities(mapped);
         localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(mapped));
       } catch (err) {
-        console.error('Error sincronizando desde API (GET /api/activities):', err);
-        // Fallback: deja lo que esté en localStorage/mock para no romper UI
+        console.error('Error sincronizando Activities (GET /api/activities):', err);
       }
     })();
   }, [isAuthenticated, currentPromoterId, userRole]);
 
   /** =========================================================
-   * 3.4.1 FUNCIONES SUSTITUIDAS (4)
+   * 4 FUNCIONES SUSTITUIDAS (POST + Refresh)
    * ========================================================= */
 
-  // 1) refreshGlobalData: recarga desde API y actualiza cache
+  // refreshGlobalData: recarga Activities + Promoters (si existe API) y actualiza cache
   const refreshGlobalData = useCallback(async () => {
     try {
+      // Promoters (perfiles) primero: control admin
+      try {
+        const pr = await apiGetPromoters();
+        const serverProms = (pr.items || []).map(mapRowToUiPromoter);
+        setPromoters((prev) => {
+          const merged = mergePromotersById(prev, serverProms);
+          localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(merged));
+          return merged;
+        });
+      } catch (err) {
+        // fallback silencioso
+      }
+
+      // Activities
       const roleParam = userRole === UserRole.ADMIN ? 'admin' : 'gestor';
       const userParam = userRole === UserRole.ADMIN ? undefined : currentPromoterId;
 
@@ -228,52 +317,49 @@ const App: React.FC = () => {
       setTimeout(() => setShowSaveSuccess(false), 1500);
     } catch (err) {
       console.error('refreshGlobalData error:', err);
-      // fallback: intenta al menos leer localStorage
+      // fallback: localStorage
       try {
         const savedActs = localStorage.getItem(STORAGE_KEYS.ACTIVITIES);
         if (savedActs) setActivities(JSON.parse(savedActs));
+        const savedProms = localStorage.getItem(STORAGE_KEYS.PROMOTERS);
+        if (savedProms) setPromoters(JSON.parse(savedProms));
       } catch {}
     }
   }, [userRole, currentPromoterId]);
 
-  // 2) handleAddActivity: POST a la API y luego refresh
+  // handleAddActivity: POST a la API y luego refresh
   const handleAddActivity = useCallback(
     async (activity: Activity) => {
       try {
         const isAdmin = userRole === UserRole.ADMIN;
 
-        // Normaliza payload para tu API (según tu handler POST actual)
         const payload = {
           created_by: currentPromoterId || activity.promoterId || '',
           role: isAdmin ? 'admin' : 'gestor',
-          assigned_to: activity.assigned_to ?? null, // si no existe en tu Activity, se ignora
-          // Soportar ambos mundos: objective/title
+          assigned_to: (activity as any).assigned_to ?? null,
+
           objective: (activity as any).objective ?? (activity as any).title ?? '',
           community: (activity as any).community ?? null,
           date: (activity as any).date ?? null,
           time: (activity as any).time ?? null,
           status: (activity as any).status ?? 'pendiente',
-          // Si tu API vieja usa title/description:
+
+          // compat: por si tu API aún usa title/description
           title: (activity as any).title ?? (activity as any).objective ?? '',
           description: (activity as any).description ?? null,
         };
-
-        // Por si la UI no trae assigned_to:
-        if (!payload.assigned_to && !isAdmin) {
-          // gestor puede asignar al admin o dejar null; aquí lo dejamos null por defecto
-          payload.assigned_to = null;
-        }
 
         await apiCreateActivity(payload);
         await refreshGlobalData();
       } catch (err) {
         console.error('handleAddActivity error:', err);
-        // fallback local (no perder trabajo si API falla)
+
+        // fallback local
         const newActivity = {
           ...activity,
-          id: activity.id || 'act-' + Date.now(),
-          promoterId: activity.promoterId || currentPromoterId,
-          location: activity.location || DEFAULT_LOCATION,
+          id: (activity as any).id || 'act-' + Date.now(),
+          promoterId: (activity as any).promoterId || currentPromoterId,
+          location: (activity as any).location || DEFAULT_LOCATION,
         } as Activity;
 
         setActivities((prev) => {
@@ -289,11 +375,9 @@ const App: React.FC = () => {
     [userRole, currentPromoterId, refreshGlobalData]
   );
 
-  // 3) handleBulkAddActivities: (viene de ProgramModule, etc.)
-  // Para este paso lo dejamos "seguro": agrega localmente y luego refresh para traer la verdad del servidor.
+  // handleBulkAddActivities: agrega localmente y luego refresh para traer la verdad del servidor
   const handleBulkAddActivities = useCallback(
     async (newActivities: Activity[]) => {
-      // Optimista local (evita duplicados)
       setActivities((prev) => {
         const existingIds = new Set(prev.map((a) => a.id));
         const uniqueNew = newActivities.filter((a) => !existingIds.has(a.id));
@@ -305,7 +389,6 @@ const App: React.FC = () => {
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 1200);
 
-      // Luego sincroniza desde API (para no quedarte desfasado)
       try {
         await refreshGlobalData();
       } catch {}
@@ -313,10 +396,7 @@ const App: React.FC = () => {
     [refreshGlobalData]
   );
 
-  // 4) handleUpdateActivity: recomendado
-  // Nota: tu API actual NO tiene endpoint PUT/PATCH, así que:
-  // - actualizamos localmente para que UI funcione
-  // - y luego puedes crear un endpoint /api/activities/[id] para persistir cambios.
+  // handleUpdateActivity: (sin endpoint PUT/PATCH) actualiza localmente
   const handleUpdateActivity = useCallback((id: string, updates: Partial<Activity>) => {
     setActivities((prev) => {
       const updated = prev.map((a) => (a.id === id ? { ...a, ...updates } : a));
@@ -325,8 +405,33 @@ const App: React.FC = () => {
     });
   }, []);
 
+  /** =========================================================
+   * Control ADMIN de perfiles: actualizar usuario (local + API)
+   * ========================================================= */
+  const handleUpsertPromoter = useCallback(
+    async (id: string, updates: Partial<Promoter>) => {
+      // 1) optimista local
+      setPromoters((prev) => {
+        const updated = prev.map((u) => (u.id === id ? { ...u, ...updates } : u));
+        localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(updated));
+        return updated;
+      });
+
+      // 2) persistir en servidor (si existe API)
+      try {
+        await apiUpsertPromoter(id, updates);
+        // 3) recarga para que admin vea la verdad del servidor
+        await refreshGlobalData();
+      } catch (err) {
+        // si aún no existe API, al menos no rompas la UI
+        console.warn('No se pudo persistir perfil en /api/promoters. Quedó solo local.', err);
+      }
+    },
+    [refreshGlobalData]
+  );
+
   /** =========================
-   * Filtrado en UI
+   * Filtrado (Registro/Dashboard)
    * ========================= */
   const filteredActivities = useMemo(() => {
     if (userRole === UserRole.ADMIN) {
@@ -335,16 +440,17 @@ const App: React.FC = () => {
     }
     return activities.filter((a) => a.promoterId === currentPromoterId);
   }, [activities, userRole, currentPromoterId, adminViewPromoterId]);
-const agendaActivities = useMemo(() => {
-  // ADMIN: ver todas (o filtrar por el selector "Vista" si no es ALL)
-  if (userRole === UserRole.ADMIN) {
-    if (adminViewPromoterId === 'ALL') return activities;
-    return activities.filter(a => a.promoterId === adminViewPromoterId);
-  }
 
-  // GESTOR: ver solo las suyas
-  return activities.filter(a => a.promoterId === currentPromoterId);
-}, [activities, userRole, currentPromoterId, adminViewPromoterId]);
+  /** =========================
+   * Agenda (ProgramModule) - ADMIN debe ver TODO
+   * ========================= */
+  const agendaActivities = useMemo(() => {
+    if (userRole === UserRole.ADMIN) {
+      if (adminViewPromoterId === 'ALL') return activities;
+      return activities.filter((a) => a.promoterId === adminViewPromoterId);
+    }
+    return activities.filter((a) => a.promoterId === currentPromoterId);
+  }, [activities, userRole, currentPromoterId, adminViewPromoterId]);
 
   /** =========================
    * Auth
@@ -363,7 +469,9 @@ const agendaActivities = useMemo(() => {
 
   const handleLogout = () => {
     setPromoters((prev) =>
-      prev.map((p) => (p.id === currentPromoterId ? { ...p, isOnline: false, lastConnection: new Date().toISOString() } : p))
+      prev.map((p) =>
+        p.id === currentPromoterId ? { ...p, isOnline: false, lastConnection: new Date().toISOString() } : p
+      )
     );
     setIsAuthenticated(false);
     localStorage.removeItem(STORAGE_KEYS.AUTH_ID);
@@ -435,7 +543,10 @@ const agendaActivities = useMemo(() => {
           className="p-4 bg-slate-800/30 rounded-2xl flex items-center gap-4 border border-slate-800/50 cursor-pointer hover:bg-slate-800/50 transition-all"
           onClick={() => setActiveView('profile')}
         >
-          <img src={currentPromoter?.photo} className="w-10 h-10 rounded-xl border border-slate-700 object-cover shadow-sm" />
+          <img
+            src={currentPromoter?.photo}
+            className="w-10 h-10 rounded-xl border border-slate-700 object-cover shadow-sm"
+          />
           <div className="overflow-hidden">
             <p className="text-[11px] font-black text-white truncate uppercase tracking-tight">{currentPromoter?.name}</p>
             <p className="text-[8px] text-indigo-400 uppercase font-black tracking-[0.2em]">{userRole}</p>
@@ -450,7 +561,7 @@ const agendaActivities = useMemo(() => {
       <Login
         onLogin={handleLogin}
         users={promoters}
-        onUpdateUser={(id, up) => setPromoters((p) => p.map((u) => (u.id === id ? { ...u, ...up } : u)))}
+        onUpdateUser={(id, up) => handleUpsertPromoter(id, up as any)}
       />
     );
   }
@@ -482,12 +593,17 @@ const agendaActivities = useMemo(() => {
         <header className="safe-pt bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-5 flex justify-between items-center z-40 sticky top-0">
           <div className="flex items-center gap-4">
             {isMobile && (
-              <button onClick={() => setIsMobileMenuOpen(true)} className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg"
+              >
                 <i className="fa-solid fa-bars"></i>
               </button>
             )}
             <div>
-              <h1 className="text-lg font-black text-slate-800 tracking-tight">{navItems.find((i) => i.id === activeView)?.label}</h1>
+              <h1 className="text-lg font-black text-slate-800 tracking-tight">
+                {navItems.find((i) => i.id === activeView)?.label}
+              </h1>
               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Sincronización en tiempo real</p>
             </div>
           </div>
@@ -502,11 +618,13 @@ const agendaActivities = useMemo(() => {
                   className="bg-slate-100 border-none rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="ALL">TODO EL EQUIPO</option>
-                  {promoters.filter((p) => p.role === UserRole.FIELD_PROMOTER).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
+                  {promoters
+                    .filter((p) => p.role === UserRole.FIELD_PROMOTER)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
                 </select>
               </div>
             )}
@@ -546,7 +664,12 @@ const agendaActivities = useMemo(() => {
 
             {activeView === 'program' && (
               <ProgramModule
-                promoterId={userRole === UserRole.ADMIN ? adminViewPromoterId : currentPromoterId}
+                // CLAVE: NO mandes "ALL" como promoterId, porque muchos ProgramModule filtran por igualdad
+                promoterId={
+                  userRole === UserRole.ADMIN
+                    ? (adminViewPromoterId === 'ALL' ? '' : adminViewPromoterId)
+                    : currentPromoterId
+                }
                 activities={agendaActivities}
                 promoters={promoters}
                 onAddActivity={handleAddActivity}
@@ -571,16 +694,35 @@ const agendaActivities = useMemo(() => {
 
             {activeView === 'tracking' && <TrackingMap promoters={promoters} />}
             {activeView === 'team' && <TeamModule promoters={promoters} />}
+
             {activeView === 'user-management' && (
               <UserManagementModule
                 users={promoters}
-                onAddUser={(u) => setPromoters((p) => [u, ...p])}
-                onUpdateUser={(id, up) => setPromoters((p) => p.map((u) => (u.id === id ? { ...u, ...up } : u)))}
-                onDeleteUser={(id) => setPromoters((p) => p.filter((u) => u.id !== id))}
+                onAddUser={(u) => {
+                  setPromoters((p) => {
+                    const updated = [u, ...p];
+                    localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(updated));
+                    return updated;
+                  });
+                  // si existe api, persiste (opcional)
+                  handleUpsertPromoter((u as any).id, u as any);
+                }}
+                onUpdateUser={(id, up) => handleUpsertPromoter(id, up as any)}
+                onDeleteUser={(id) =>
+                  setPromoters((p) => {
+                    const updated = p.filter((u) => u.id !== id);
+                    localStorage.setItem(STORAGE_KEYS.PROMOTERS, JSON.stringify(updated));
+                    return updated;
+                  })
+                }
               />
             )}
+
             {activeView === 'profile' && currentPromoter && (
-              <ProfileModule user={currentPromoter} onUpdateUser={(id, up) => setPromoters((p) => p.map((u) => (u.id === id ? { ...u, ...up } : u)))} />
+              <ProfileModule
+                user={currentPromoter}
+                onUpdateUser={(id, up) => handleUpsertPromoter(id, up as any)}
+              />
             )}
 
             {activeView === 'reports' && <PerformanceReport activities={activities} promoters={promoters} />}
@@ -589,7 +731,9 @@ const agendaActivities = useMemo(() => {
               <AdminNotificationModule
                 promoters={promoters}
                 notifications={notifications}
-                onSendNotification={(n) => setNotifications((prev) => [{ ...(n as any), id: Date.now().toString() }, ...prev])}
+                onSendNotification={(n) =>
+                  setNotifications((prev) => [{ ...(n as any), id: Date.now().toString() }, ...prev])
+                }
               />
             )}
 
@@ -597,14 +741,17 @@ const agendaActivities = useMemo(() => {
               <AdminAssignmentModule
                 adminId={currentPromoterId}
                 promoters={promoters.filter((p) => p.role === UserRole.FIELD_PROMOTER)}
-                onAssignActivities={(acts) => setActivities((prev) => [...acts, ...prev])}
+                onAssignActivities={(acts) =>
+                  setActivities((prev) => {
+                    const updated = [...acts, ...prev];
+                    localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(updated));
+                    return updated;
+                  })
+                }
               />
             )}
 
-            {/* Mantengo imports por compatibilidad (si los usas en otro view):
-                ReportingModule / AdminReportGenerator / final-report / admin-custom-reports
-                Si no los usas hoy, puedes eliminarlos del import y del proyecto.
-             */}
+            {/* ReportingModule / AdminReportGenerator quedan importados si en tu proyecto existen otros views */}
           </div>
         </div>
       </div>
@@ -612,7 +759,19 @@ const agendaActivities = useMemo(() => {
   );
 };
 
-const StatCard = ({ icon, color, bg, label, value }: { icon: string; color: string; bg: string; label: string; value: string }) => (
+const StatCard = ({
+  icon,
+  color,
+  bg,
+  label,
+  value,
+}: {
+  icon: string;
+  color: string;
+  bg: string;
+  label: string;
+  value: string;
+}) => (
   <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 flex items-center gap-5">
     <div className={`w-14 h-14 ${bg} ${color} rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 shadow-inner`}>
       <i className={`fa-solid ${icon}`}></i>
@@ -625,3 +784,4 @@ const StatCard = ({ icon, color, bg, label, value }: { icon: string; color: stri
 );
 
 export default App;
+
