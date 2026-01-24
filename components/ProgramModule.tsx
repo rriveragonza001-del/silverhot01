@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef } from 'react';
 // Fix: Removed 'Type' from local types import
 import { Activity, ActivityType, ActivityStatus, Location, UserRole, Promoter } from '../types';
 // Fix: Imported 'Type' from @google/genai
-import { GoogleGenAI, Type } from '@google/genai';
+
 
 interface ProgramModuleProps {
   activities: Activity[];
