@@ -335,6 +335,16 @@ const App: React.FC = () => {
     }
     return activities.filter((a) => a.promoterId === currentPromoterId);
   }, [activities, userRole, currentPromoterId, adminViewPromoterId]);
+const agendaActivities = useMemo(() => {
+  // ADMIN: ver todas (o filtrar por el selector "Vista" si no es ALL)
+  if (userRole === UserRole.ADMIN) {
+    if (adminViewPromoterId === 'ALL') return activities;
+    return activities.filter(a => a.promoterId === adminViewPromoterId);
+  }
+
+  // GESTOR: ver solo las suyas
+  return activities.filter(a => a.promoterId === currentPromoterId);
+}, [activities, userRole, currentPromoterId, adminViewPromoterId]);
 
   /** =========================
    * Auth
