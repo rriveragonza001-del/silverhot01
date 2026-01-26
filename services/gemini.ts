@@ -25,3 +25,21 @@ export async function generateWithGemini(body: GeminiRequest): Promise<GeminiRes
 
   return { ok: true, text: data?.text ?? "" };
 }
+// services/gemini.ts
+
+// ... (tu código actual)
+
+export async function generatePerformanceSummary(params: {
+  reportText: string;
+  context?: string;
+}): Promise<GeminiResponse> {
+  const prompt =
+    `Genera un resumen ejecutivo claro y accionable del siguiente reporte. ` +
+    `Incluye: hallazgos clave, riesgos, recomendaciones y próximos pasos.\n\n` +
+    `REPORTE:\n${params.reportText}`;
+
+  return generateWithGemini({
+    prompt,
+    context: params.context,
+  });
+}
