@@ -1,79 +1,48 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Client } from "pg";
 
-/** =========================
- *  DB
- *  ========================= */
 function getClient() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Missing DATABASE_URL");
   return new Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
 }
 
-/** =========================
- *  Google Sheets Log (AGENDA_LOG)
- *  ========================= */
-type SheetsLogAction = "CREATE" | "UPDATE" | "DELETE" | "IMPORT_UPSERT";
+/**
+ * ✅ Log a Google Sheets (NO rompe el API si falla)
+ * Requiere env vars en Vercel:
+ * - SHEETS_WEBHOOK_URL
+ * - SHEETS_WEBHOOK_SECRET
+ */
+async function pushSheetsLog(event: any) {
+  try {
+    const url = process.env.SHEETS_WEBHOOK_URL;
+    const secret = process.env.SHEETS_WEBHOOK_SECRET;
+    if (!url || !secret) return;
 
-async function pushSheetsLog(event: {
-  action: SheetsLogAction;
-
-  actorRole: string;     // "admin" | "gestor" (o lo que uses)
-  actorId: string;       // quien hizo la acción
-  actorName?: string;
-
-  activityId: string;
-  promoterId: string;    // a quién pertenece la actividad
-
-  date?: string;
-  time?: string;
-  community?: string;
-  objective?: string;
-  status?: string;
-  place?: string;
-  notes?: string;
-
-  source?: "API" | "WEB" | "CSV";
-  diff?: Record<string, unknown>;
-}) {
-  const url = process.env.SHEETS_WEBHOOK_URL;
-  const secret = process.env.SHEETS_WEBHOOK_SECRET;
-
-  // Si no hay configuración, no rompemos la API
-  if (!url || !secret) return;
-
-  const payload = {
-    secret,
-    events: [
-      {
+    const payload = {
+      secret,
+      event: {
         timestamp: new Date().toISOString(),
-        source: event.source ?? "API",
+        source: "API",
         ...event,
       },
-    ],
-  };
+    };
 
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+    // Node 20 en Vercel ya trae fetch global
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-  if (!r.ok) {
-    // No bloqueamos la operación principal, pero dejamos rastro en logs de Vercel
-    const t = await r.text().catch(() => "");
-    console.error("[SheetsLog] webhook failed:", r.status, t?.slice?.(0, 300));
+    // No lanzamos error si Sheets falla; solo registramos un warning interno
+    if (!r.ok) {
+      const t = await r.text().catch(() => "");
+      console.warn("Sheets webhook failed:", r.status, t?.slice?.(0, 300));
+    }
+  } catch (e) {
+    console.warn("Sheets webhook error:", String(e));
   }
-}
-
-/** Normaliza role (por si el front manda ADMIN/GESTOR o admin/gestor) */
-function normRole(v: any) {
-  const s = String(v ?? "").toLowerCase();
-  if (s === "admin" || s === "administrator") return "admin";
-  if (s === "gestor" || s === "promoter") return "gestor";
-  // Si tu front manda "UserRole.ADMIN"
-  if (s.includes("admin")) return "admin";
-  return "gestor";
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -94,11 +63,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ok: true, debug: r.rows[0] });
     }
 
-    /** =========================
-     *  GET - LISTAR
-     *  ========================= */
+    // =========================
+    // GET - LISTAR ACTIVIDADES
+    // =========================
     if (req.method === "GET") {
-      const role = normRole(req.query.role ?? "gestor");
+      const role = String(req.query.role ?? "gestor");
       const user = String(req.query.user ?? "");
 
       let sqlText = `
@@ -109,35 +78,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `;
       const params: any[] = [];
 
-      // Gestor: solo sus creadas o asignadas
       if (role !== "admin") {
         if (!user) return res.status(400).json({ error: "Missing user" });
         params.push(user);
         sqlText += ` where (a.created_by = $1 or a.assigned_to = $1) `;
       }
 
-      // 🔧 Nota: hoy ordenas por created_at; tu “agenda” real debería ordenar por date/time
-      // cuando esos campos existan en la tabla.
-      sqlText += ` group by a.id order by a.created_at desc limit 500`;
+      sqlText += ` group by a.id order by a.created_at desc limit 200`;
 
       const r = await client.query(sqlText, params);
       return res.status(200).json({ ok: true, items: r.rows });
     }
 
-    /** =========================
-     *  POST - CREAR
-     *  ========================= */
+    // =========================
+    // POST - CREAR ACTIVIDAD
+    // =========================
     if (req.method === "POST") {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
       const created_by = String(body?.created_by ?? "");
-      const role = normRole(body?.role ?? "gestor");
+      const role = String(body?.role ?? "gestor");
       const assigned_to = body?.assigned_to ? String(body.assigned_to) : null;
 
-      // front manda objective; BD exige title
+      // front manda objective; BD usa title
       const title = String(body?.title ?? body?.objective ?? "");
 
-      // Si tabla no tiene community, lo guardas en description
+      // community lo metemos en description para no depender de columna
       const community = body?.community ? String(body.community) : "";
       const rawDescription = body?.description ? String(body.description) : "";
       const description =
@@ -148,6 +114,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             : (rawDescription || null);
 
       const status = body?.status ? String(body.status) : "pendiente";
+
+      // datos opcionales para logging (no afectan BD)
+      const actorId = String(body?.actorId ?? created_by ?? "");
+      const actorName = String(body?.actorName ?? "");
+      const actorRole = String(body?.actorRole ?? role ?? "");
 
       if (!created_by || !title) {
         return res.status(400).json({ error: "created_by and title/objective are required" });
@@ -162,89 +133,108 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const item = r.rows[0];
 
-      // ✅ LOG a Sheets (no bloquea si falla)
-      await pushSheetsLog({
+      // ✅ LOG CREATE a Sheets (no bloquea respuesta)
+      pushSheetsLog({
         action: "CREATE",
-        actorRole: role,
-        actorId: created_by,
-        actorName: body?.actorName ? String(body.actorName) : undefined,
-        activityId: String(item.id),
-        promoterId: assigned_to ?? created_by, // dueño lógico de la actividad
-        community,
-        objective: title,
-        status,
-        notes: rawDescription || undefined,
-        source: "API",
-        diff: { created: true },
-      });
+        actorRole,
+        actorId,
+        actorName,
+        activityId: String(item?.id ?? ""),
+        promoterId: String(item?.assigned_to ?? item?.created_by ?? ""),
+        date: String(body?.date ?? ""),   // si tu front manda fecha/hora
+        time: String(body?.time ?? ""),
+        community: String(body?.community ?? ""),
+        objective: String(body?.objective ?? body?.title ?? ""),
+        status: String(item?.status ?? body?.status ?? ""),
+        place: String(body?.place ?? ""),
+        notes: String(body?.notes ?? ""),
+      }).catch(() => {});
 
       return res.status(201).json({ ok: true, item });
     }
 
-    /** =========================
-     *  PATCH - EDITAR (NUEVO)
-     *  ========================= */
+    // =========================
+    // PATCH - ACTUALIZAR ACTIVIDAD (para logging UPDATE)
+    // =========================
     if (req.method === "PATCH") {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
-      const id = String(body?.id ?? "");
+      const id = body?.id;
       if (!id) return res.status(400).json({ error: "Missing id" });
 
-      const actorId = String(body?.actorId ?? body?.created_by ?? "");
-      const role = normRole(body?.role ?? "gestor");
-      if (!actorId) return res.status(400).json({ error: "Missing actorId/created_by" });
+      // logging actor
+      const actorId = String(body?.actorId ?? "");
+      const actorName = String(body?.actorName ?? "");
+      const actorRole = String(body?.role ?? body?.actorRole ?? "");
 
-      // Traer registro actual para diff/log
+      // leer antes (para diff)
       const beforeR = await client.query(`select * from activities where id = $1`, [id]);
-      if (!beforeR.rows.length) return res.status(404).json({ error: "Not found" });
-      const before = beforeR.rows[0];
+      const before = beforeR.rows?.[0];
+      if (!before) return res.status(404).json({ error: "Not found" });
 
-      // Campos editables (según tu tabla actual)
-      const nextTitle = body?.title ?? body?.objective;
-      const nextStatus = body?.status;
+      // campos actualizables (solo los que sabemos que existen)
+      const nextTitle = body?.title ?? body?.objective ?? undefined;
+      const nextAssigned = body?.assigned_to !== undefined ? (body.assigned_to ? String(body.assigned_to) : null) : undefined;
+      const nextStatus = body?.status !== undefined ? String(body.status) : undefined;
 
-      // community/notes se guardan dentro de description (porque tu tabla no tiene community)
-      const community = body?.community ? String(body.community) : "";
-      const rawDescription = body?.description ? String(body.description) : "";
-      const nextDescription =
-        community && rawDescription
-          ? `Comunidad: ${community}\n\n${rawDescription}`
-          : community
-            ? `Comunidad: ${community}`
-            : (rawDescription || before.description || null);
+      // community sigue yendo a description
+      const community = body?.community !== undefined ? String(body.community ?? "") : undefined;
+      const rawDescription = body?.description !== undefined ? String(body.description ?? "") : undefined;
 
-      const upd = await client.query(
-        `update activities
-           set title = coalesce($2, title),
-               status = coalesce($3, status),
-               description = $4
-         where id = $1
-         returning *`,
-        [id, nextTitle ?? null, nextStatus ?? null, nextDescription]
-      );
+      let nextDescription: string | null | undefined = undefined;
+      if (community !== undefined || rawDescription !== undefined) {
+        const c = community ?? "";
+        const d = rawDescription ?? "";
+        nextDescription =
+          c && d ? `Comunidad: ${c}\n\n${d}` :
+          c ? `Comunidad: ${c}` :
+          (d || null);
+      }
 
-      const item = upd.rows[0];
+      // construir UPDATE dinámico
+      const sets: string[] = [];
+      const params: any[] = [];
+      let p = 1;
 
-      // Diff simple
-      const diff: Record<string, unknown> = {};
-      if ((nextTitle ?? null) !== null && nextTitle !== before.title) diff.title = { from: before.title, to: nextTitle };
-      if ((nextStatus ?? null) !== null && nextStatus !== before.status) diff.status = { from: before.status, to: nextStatus };
-      if (nextDescription !== before.description) diff.description = { from: before.description, to: nextDescription };
+      if (nextAssigned !== undefined) { sets.push(`assigned_to = $${p++}`); params.push(nextAssigned); }
+      if (nextTitle !== undefined)    { sets.push(`title = $${p++}`); params.push(String(nextTitle)); }
+      if (nextDescription !== undefined) { sets.push(`description = $${p++}`); params.push(nextDescription); }
+      if (nextStatus !== undefined)   { sets.push(`status = $${p++}`); params.push(nextStatus); }
 
-      await pushSheetsLog({
+      if (!sets.length) return res.status(400).json({ error: "No fields to update" });
+
+      params.push(id);
+      const sql = `update activities set ${sets.join(", ")} where id = $${p} returning *`;
+
+      const r = await client.query(sql, params);
+      const item = r.rows[0];
+
+      // diff simple (solo campos relevantes)
+      const diff: any = {};
+      const watch = ["assigned_to", "title", "description", "status"];
+      for (const k of watch) {
+        if (String(before?.[k] ?? "") !== String(item?.[k] ?? "")) {
+          diff[k] = { from: before?.[k] ?? null, to: item?.[k] ?? null };
+        }
+      }
+
+      // ✅ LOG UPDATE a Sheets
+      pushSheetsLog({
         action: "UPDATE",
-        actorRole: role,
+        actorRole,
         actorId,
-        actorName: body?.actorName ? String(body.actorName) : undefined,
-        activityId: String(item.id),
-        promoterId: String(item.assigned_to ?? item.created_by),
-        community,
-        objective: String(item.title ?? ""),
-        status: String(item.status ?? ""),
-        notes: rawDescription || undefined,
-        source: "API",
+        actorName,
+        activityId: String(item?.id ?? ""),
+        promoterId: String(item?.assigned_to ?? item?.created_by ?? ""),
+        date: String(body?.date ?? ""),
+        time: String(body?.time ?? ""),
+        community: String(body?.community ?? ""),
+        objective: String(body?.objective ?? body?.title ?? ""),
+        status: String(item?.status ?? body?.status ?? ""),
+        place: String(body?.place ?? ""),
+        notes: String(body?.notes ?? ""),
         diff,
-      });
+      }).catch(() => {});
 
       return res.status(200).json({ ok: true, item });
     }
